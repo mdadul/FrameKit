@@ -1,14 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Plus, RotateCcw, Sparkles, Type, X } from 'lucide-react'
+import { useSelectionCapabilities } from '@/hooks/useSelectionCapabilities'
 import { DEFAULT_BRAND_KIT, BRAND_PRIMARY, GOOGLE_FONTS } from '@/lib/constants'
-import { useEditorStore } from '@/stores/editor-store'
-import { useProjectStore } from '@/stores/project-store'
 import { useBrandKit, useBrandKitActions } from '@/hooks/useBrandKit'
+import { useProjectStore } from '@/stores/project-store'
+import { useEditorStore } from '@/stores/editor-store'
 import { confirm } from '@/stores/confirm-store'
 import { ColorPickerField } from '@/components/ui/ColorPickerField'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
-import type { Element } from '@/lib/types'
 
 function ControlGroup({
   title,
@@ -38,42 +38,6 @@ function SelectionHint({ children }: { children: React.ReactNode }) {
   )
 }
 
-function useSelectionContext() {
-  const project = useProjectStore((state) => state.project)
-  const activeScreenId = useEditorStore((state) => state.activeScreenId)
-  const selectedElementIds = useEditorStore((state) => state.selectedElementIds)
-
-  return useMemo(() => {
-    const screen = project?.screens.find((item) => item.id === activeScreenId)
-    if (!screen || selectedElementIds.length === 0) {
-      return {
-        hasSelection: false,
-        hasText: false,
-        hasShape: false,
-        canApplyColor: false,
-        canApplyFont: false,
-        selectedElements: [] as Element[],
-      }
-    }
-
-    const selectedElements = selectedElementIds
-      .map((id) => screen.elements.find((item) => item.id === id))
-      .filter((item): item is Element => item != null)
-
-    const hasText = selectedElements.some((item) => item.type === 'text')
-    const hasShape = selectedElements.some((item) => item.type === 'shape')
-
-    return {
-      hasSelection: selectedElements.length > 0,
-      hasText,
-      hasShape,
-      canApplyColor: hasText || hasShape,
-      canApplyFont: hasText,
-      selectedElements,
-    }
-  }, [project, activeScreenId, selectedElementIds])
-}
-
 export function BrandKitPanel() {
   const brandKit = useBrandKit()
   const { updateBrandKit, resetToGlobal, hasOverride } = useBrandKitActions()
@@ -81,7 +45,7 @@ export function BrandKitPanel() {
   const applyBrandToAllText = useProjectStore((state) => state.applyBrandToAllText)
   const getActiveScreen = useProjectStore((state) => state.getActiveScreen)
   const selectedElementIds = useEditorStore((state) => state.selectedElementIds)
-  const selection = useSelectionContext()
+  const selection = useSelectionCapabilities()
   const [draftColor, setDraftColor] = useState(BRAND_PRIMARY)
   const [draftFont, setDraftFont] = useState('Inter')
 

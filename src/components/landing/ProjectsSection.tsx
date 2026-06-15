@@ -14,17 +14,17 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { InlineEdit } from '@/components/ui/InlineEdit'
-import { ProjectThumbnail } from '@/components/dashboard/ProjectThumbnail'
+import { ProjectThumbnail } from '@/components/templates/ProjectThumbnail'
 import { StarterTemplatesRow } from '@/components/landing/StarterTemplatesRow'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
+import type { ProjectAssetUrlMap } from '@/hooks/useProjectsCatalog'
 import type { Project, TemplateDefinition } from '@/lib/types'
-
-type SortKey = 'updated' | 'name' | 'screens'
+import type { ProjectSortKey } from '@/lib/landing/types'
 
 export interface ProjectsSectionProps {
   projects: Project[]
   loading: boolean
-  assetUrls: Record<string, Record<string, string>>
+  assetUrls: ProjectAssetUrlMap
   onCreateFromTemplate: (template: TemplateDefinition) => void
   onOpenProject: (projectId: string) => void
   onDuplicate: (project: Project) => void
@@ -45,7 +45,7 @@ export function ProjectsSection({
   onExportProject,
 }: ProjectsSectionProps) {
   const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<SortKey>('updated')
+  const [sort, setSort] = useState<ProjectSortKey>('updated')
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -126,7 +126,7 @@ export function ProjectsSection({
                 </div>
                 <select
                   value={sort}
-                  onChange={(e) => setSort(e.target.value as SortKey)}
+                  onChange={(e) => setSort(e.target.value as ProjectSortKey)}
                   aria-label="Sort projects"
                   className="h-10 w-full rounded-xl border border-border/60 bg-card px-3 text-sm shadow-sm focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/15 sm:w-auto"
                 >

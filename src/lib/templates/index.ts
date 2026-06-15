@@ -9,6 +9,7 @@ export {
   type TemplateCategory,
 } from '@/lib/templates/types'
 export { renderTemplatePreview, templateToScreen, applyTemplateToProject, SHOWCASE_TEMPLATE_IDS } from '@/lib/templates/preview'
+export { filterTemplates } from '@/lib/templates/filter-templates'
 
 import { TEMPLATES } from '@/lib/templates/catalog'
 

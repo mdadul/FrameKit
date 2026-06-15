@@ -1,18 +1,18 @@
 import { useMemo, useState } from 'react'
 import { LayoutTemplate, Search, Sparkles } from 'lucide-react'
+import { filterTemplates } from '@/lib/templates/filter-templates'
 import {
   TEMPLATES,
-  LAYOUT_LABELS,
   CATEGORY_LABELS,
   TEMPLATE_FILTER_TAGS,
 } from '@/lib/templates'
-import { createId } from '@/lib/utils'
+import { templateElementsToScreenElements } from '@/lib/templates/preview'
 import { useProjectStore } from '@/stores/project-store'
 import { useEditorStore } from '@/stores/editor-store'
 import { Input } from '@/components/ui/Input'
 import { TemplateApplyDialog } from '@/components/templates/TemplateApplyDialog'
-import { TemplateThumbnail } from '@/components/templates/TemplateThumbnail'
-import type { Element, TemplateApplyMode, TemplateDefinition } from '@/lib/types'
+import { TemplateCard } from '@/components/templates/TemplateCard'
+import type { TemplateApplyMode, TemplateDefinition } from '@/lib/types'
 
 type FilterTag = (typeof TEMPLATE_FILTER_TAGS)[number] | 'all'
 
@@ -25,20 +25,14 @@ export function TemplatesPanel() {
   const [activeTag, setActiveTag] = useState<FilterTag>('all')
   const [pendingTemplate, setPendingTemplate] = useState<TemplateDefinition | null>(null)
 
-  const filteredTemplates = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    return TEMPLATES.filter((template) => {
-      if (activeTag !== 'all' && !template.tags?.includes(activeTag)) return false
-      if (!normalized) return true
-      return (
-        template.name.toLowerCase().includes(normalized) ||
-        template.category.toLowerCase().includes(normalized) ||
-        CATEGORY_LABELS[template.category].toLowerCase().includes(normalized) ||
-        LAYOUT_LABELS[template.layout].toLowerCase().includes(normalized) ||
-        template.tags?.some((tag) => tag.toLowerCase().includes(normalized))
-      )
-    })
-  }, [query, activeTag])
+  const filteredTemplates = useMemo(
+    () =>
+      filterTemplates(TEMPLATES, {
+        query,
+        tag: activeTag === 'all' ? undefined : activeTag,
+      }),
+    [query, activeTag],
+  )
 
   const groups = useMemo(() => {
     return [...new Set(filteredTemplates.map((t) => t.category))]
@@ -55,13 +49,7 @@ export function TemplatesPanel() {
     const screenId = activeScreenId ?? project?.screens[0]?.id
     if (!template || !screenId) return
 
-    const elements = template.elements.map((element, index) => ({
-      ...structuredClone(element),
-      id: createId(),
-      name: element.name ?? `Element ${index + 1}`,
-      zIndex: index,
-    })) as Element[]
-
+    const elements = templateElementsToScreenElements(template.elements)
     const background = structuredClone(template.background)
 
     if (scope === 'all') {
@@ -125,47 +113,12 @@ export function TemplatesPanel() {
                 </div>
                 <div className="space-y-3">
                   {group.templates.map((template) => (
-                    <button
+                    <TemplateCard
                       key={template.id}
-                      type="button"
+                      template={template}
+                      variant="panel"
                       onClick={() => setPendingTemplate(template)}
-                      title={`Preview ${template.name}`}
-                      className="group flex w-full flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-sm transition hover:border-primary/50 hover:shadow-md focus-visible:border-primary focus-visible:outline-none"
-                    >
-                      <div className="relative p-2 pb-0">
-                        <div className="overflow-hidden rounded-lg border border-border/60 bg-black/5 shadow-inner">
-                          <TemplateThumbnail
-                            template={template}
-                            className="aspect-[9/19.5] w-full"
-                          />
-                        </div>
-                        <div className="pointer-events-none absolute inset-2 flex items-end justify-center rounded-lg bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition group-hover:opacity-100">
-                          <span className="mb-3 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-lg">
-                            Use template
-                          </span>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5 px-3 py-2.5">
-                        <p className="truncate text-sm font-semibold text-foreground">
-                          {template.name}
-                        </p>
-                        <p className="truncate text-[11px] text-muted-foreground">
-                          {LAYOUT_LABELS[template.layout]}
-                        </p>
-                        {template.tags && template.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {template.tags.map((tag) => (
-                              <span
-                                key={tag}
-                                className="rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[9px] font-medium capitalize text-muted-foreground"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </button>
+                    />
                   ))}
                 </div>
               </section>

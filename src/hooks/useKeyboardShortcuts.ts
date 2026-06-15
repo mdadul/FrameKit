@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
+import { useHistoryNavigation } from '@/hooks/useHistoryNavigation'
 import { useProjectStore } from '@/stores/project-store'
-import { useHistoryStore } from '@/stores/history-store'
 import { useEditorStore } from '@/stores/editor-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { duplicateElement } from '@/lib/factories'
@@ -15,9 +15,7 @@ export function useKeyboardShortcuts() {
   const updateElement = useProjectStore((state) => state.updateElement)
   const bringForward = useProjectStore((state) => state.bringForward)
   const sendBackward = useProjectStore((state) => state.sendBackward)
-  const undo = useHistoryStore((state) => state.undo)
-  const redo = useHistoryStore((state) => state.redo)
-  const restoreFromHistory = useProjectStore((state) => state.restoreFromHistory)
+  const { undo, redo } = useHistoryNavigation()
   const selectedElementIds = useEditorStore((state) => state.selectedElementIds)
   const setSelectedElementIds = useEditorStore((state) => state.setSelectedElementIds)
   const clipboard = useEditorStore((state) => state.clipboard)
@@ -39,15 +37,13 @@ export function useKeyboardShortcuts() {
 
       if (meta && event.key.toLowerCase() === 'z' && !event.shiftKey) {
         event.preventDefault()
-        const project = undo()
-        if (project) restoreFromHistory(project)
+        undo()
         return
       }
 
       if (meta && (event.key.toLowerCase() === 'y' || (event.shiftKey && event.key.toLowerCase() === 'z'))) {
         event.preventDefault()
-        const project = redo()
-        if (project) restoreFromHistory(project)
+        redo()
         return
       }
 
@@ -226,7 +222,6 @@ export function useKeyboardShortcuts() {
     groupElements,
     nudgeStep,
     redo,
-    restoreFromHistory,
     selectedElementIds,
     sendBackward,
     setClipboard,

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { TemplatePreviewFrame } from '@/components/templates/TemplatePreviewFrame'
 import { renderTemplatePreview } from '@/lib/templates/preview'
 import type { TemplateDefinition } from '@/lib/types'
 
@@ -32,10 +33,8 @@ export function TemplateThumbnail({ template, className }: TemplateThumbnailProp
   }, [template, previewUrl])
 
   return (
-    <div
-      ref={containerRef}
-      className={`relative overflow-hidden bg-muted ${className ?? ''}`}
-    >
+    <TemplatePreviewFrame aspectRatio="9 / 19.5" className={`bg-muted ${className ?? ''}`}>
+      <div ref={containerRef} className="absolute inset-0">
       {previewUrl ? (
         <img
           src={previewUrl}
@@ -51,6 +50,7 @@ export function TemplateThumbnail({ template, className }: TemplateThumbnailProp
           Preview unavailable
         </div>
       )}
-    </div>
+      </div>
+    </TemplatePreviewFrame>
   )
 }

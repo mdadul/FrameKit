@@ -1,4 +1,4 @@
-import { useCallback, useState, type ComponentType, type MouseEvent } from 'react'
+import { useCallback, useState, type MouseEvent } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -16,55 +16,25 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   ChevronRight,
-  Circle,
   Copy,
   Eye,
   EyeOff,
   Folder,
   GripVertical,
-  Image as ImageIcon,
   Layers,
   Lock,
-  Minus,
-  Smartphone,
-  Square,
   Trash2,
-  Triangle,
-  Type,
 } from 'lucide-react'
+import { getLayerIcon } from '@/lib/elements/element-meta'
 import { LayerContextMenu } from '@/components/panels/LayerContextMenu'
 import { useProjectStore } from '@/stores/project-store'
 import { useEditorStore } from '@/stores/editor-store'
 import { cn } from '@/lib/utils'
-import type { Element, ShapeKind } from '@/lib/types'
+import type { Element } from '@/lib/types'
 
 function LayerTypeIcon({ element }: { element: Element }) {
-  const iconClass = 'shrink-0 text-muted-foreground'
-
-  if (element.type === 'text') {
-    return <Type size={13} strokeWidth={2} className={iconClass} />
-  }
-  if (element.type === 'device') {
-    return <Smartphone size={13} strokeWidth={2} className={iconClass} />
-  }
-  if (element.type === 'image') {
-    return <ImageIcon size={13} strokeWidth={2} className={iconClass} />
-  }
-  if (element.type === 'group') {
-    return <Folder size={13} strokeWidth={2} className={iconClass} />
-  }
-  if (element.type === 'shape') {
-    const shapeIcons: Record<ShapeKind, ComponentType<{ size?: number; strokeWidth?: number; className?: string }>> = {
-      rectangle: Square,
-      circle: Circle,
-      triangle: Triangle,
-      line: Minus,
-    }
-    const Icon = shapeIcons[element.shapeKind] ?? Square
-    return <Icon size={13} strokeWidth={2} className={iconClass} />
-  }
-
-  return <Square size={13} strokeWidth={2} className={iconClass} />
+  const Icon = getLayerIcon(element)
+  return <Icon size={13} strokeWidth={2} className="shrink-0 text-muted-foreground" />
 }
 
 function selectLayer(

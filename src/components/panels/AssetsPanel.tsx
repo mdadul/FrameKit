@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Check, ImagePlus, Images, Plus, Search, Trash2, Upload } from 'lucide-react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { createAssetFromFile, createAssetObjectUrl } from '@/lib/assets/image-pipeline'
-import { deleteAsset, getProjectAssets, saveAsset } from '@/lib/db'
+import { createAssetObjectUrl } from '@/lib/assets/image-pipeline'
+import { persistProjectAsset } from '@/lib/assets/persist-project-asset'
+import { deleteAsset, getProjectAssets } from '@/lib/db'
 import { useProjectStore } from '@/stores/project-store'
 import { useEditorStore } from '@/stores/editor-store'
 import { cn } from '@/lib/utils'
@@ -187,10 +188,8 @@ export function AssetsPanel() {
       if (!project) return
       for (const file of files) {
         if (!file.type.startsWith('image/')) continue
-        const asset = await createAssetFromFile(file, project.id)
-        await saveAsset(asset)
+        const asset = await persistProjectAsset(file, project.id, registerAssetUrl)
         const url = createAssetObjectUrl(asset)
-        registerAssetUrl(asset.id, url)
         if (uploadMode === 'canvas') {
           addImageFromAsset(asset.id, url)
         }
