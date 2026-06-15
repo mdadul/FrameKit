@@ -7,8 +7,7 @@ import type {
   Screen,
   TextElement,
 } from '@/lib/types'
-import { autoResizeScreen } from '@/lib/resize/auto-resize'
-import { getBackgroundGradientProps, getElementShadowProps, getGradientProps } from '@/lib/canvas/helpers'
+import { createCanvasGradient as buildCanvasGradient } from '@/lib/canvas/create-canvas-gradient'
 import { renderDeviceComposite } from '@/lib/canvas/device-render'
 import { buildBackgroundCanvas } from '@/lib/canvas/backgrounds'
 import { BRAND_PRIMARY } from '@/lib/constants'
@@ -89,33 +88,16 @@ function createCanvasGradient(
   height: number,
 ): CanvasGradient | null {
   if (fill.type !== 'gradient' || !fill.gradient) return null
-  const definition = fill.gradient
-  let gradient: CanvasGradient
-  if (definition.type === 'radial') {
-    gradient = context.createRadialGradient(
-      width / 2,
-      height / 2,
-      0,
-      width / 2,
-      height / 2,
-      Math.max(width, height) / 2,
-    )
-  } else {
-    const angle = ((definition.angle ?? 180) * Math.PI) / 180
-    const cx = width / 2
-    const cy = height / 2
-    const len = Math.max(width, height)
-    gradient = context.createLinearGradient(
-      cx - (Math.cos(angle) * len) / 2,
-      cy - (Math.sin(angle) * len) / 2,
-      cx + (Math.cos(angle) * len) / 2,
-      cy + (Math.sin(angle) * len) / 2,
-    )
-  }
-  for (const stop of definition.stops) {
-    gradient.addColorStop(stop.offset, stop.color)
-  }
-  return gradient
+  return buildCanvasGradient(
+    context,
+    {
+      type: fill.gradient.type,
+      angle: fill.gradient.angle,
+      stops: fill.gradient.stops,
+    },
+    width,
+    height,
+  )
 }
 
 function drawTextDecoration(
@@ -478,5 +460,3 @@ export async function renderScreenToBlob(
   const response = await fetch(dataUrl)
   return response.blob()
 }
-
-export { autoResizeScreen, getBackgroundGradientProps, getElementShadowProps, getGradientProps }

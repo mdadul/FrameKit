@@ -1,24 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { screenContentSignature } from '@/lib/canvas/perf/content-signature'
 import { renderScreenToDataUrl } from '@/lib/export/renderer'
+import { TemplatePreviewFrame } from '@/components/templates/TemplatePreviewFrame'
 import type { Screen } from '@/lib/types'
 
 const thumbnailCache = new Map<string, string>()
-
-function getContentSignature(
-  screen: Screen,
-  assetResolver: (assetId?: string) => string | undefined,
-): string {
-  const assetIds: string[] = []
-  if (screen.background.imageAssetId) assetIds.push(screen.background.imageAssetId)
-  for (const element of screen.elements) {
-    if (element.type === 'image' && element.assetId) assetIds.push(element.assetId)
-    if (element.type === 'device' && element.screenshotAssetId) {
-      assetIds.push(element.screenshotAssetId)
-    }
-  }
-  const assetSignature = assetIds.map((id) => `${id}=${assetResolver(id) ?? ''}`).join('|')
-  return `${JSON.stringify(screen)}::${assetSignature}`
-}
 
 interface ProjectThumbnailProps {
   screen: Screen
@@ -28,7 +14,7 @@ interface ProjectThumbnailProps {
 
 export function ProjectThumbnail({ screen, assetResolver, className }: ProjectThumbnailProps) {
   const signature = useMemo(
-    () => getContentSignature(screen, assetResolver),
+    () => screenContentSignature(screen, assetResolver),
     [screen, assetResolver],
   )
   const cacheKey = `${screen.id}::${signature}`
@@ -53,9 +39,9 @@ export function ProjectThumbnail({ screen, assetResolver, className }: ProjectTh
   }, [cacheKey, screen, assetResolver])
 
   return (
-    <div
+    <TemplatePreviewFrame
+      aspectRatio={`${screen.width} / ${screen.height}`}
       className={className}
-      style={{ aspectRatio: `${screen.width} / ${screen.height}` }}
     >
       {dataUrl ? (
         <img
@@ -69,7 +55,7 @@ export function ProjectThumbnail({ screen, assetResolver, className }: ProjectTh
           …
         </div>
       )}
-    </div>
+    </TemplatePreviewFrame>
   )
 }
 

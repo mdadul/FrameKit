@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Search, Upload, X } from 'lucide-react'
-import { TEMPLATES, CATEGORY_LABELS, LAYOUT_LABELS, SHOWCASE_TEMPLATE_IDS } from '@/lib/templates'
-import { TemplateThumbnail } from '@/components/templates/TemplateThumbnail'
+import { TEMPLATES, SHOWCASE_TEMPLATE_IDS, filterTemplates } from '@/lib/templates'
+import { TemplateCard } from '@/components/templates/TemplateCard'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import type { TemplateDefinition } from '@/lib/types'
@@ -24,17 +24,10 @@ export function TemplatePickerModal({
 }: TemplatePickerModalProps) {
   const [query, setQuery] = useState('')
 
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    if (!normalized) return TEMPLATES
-    return TEMPLATES.filter(
-      (t) =>
-        t.name.toLowerCase().includes(normalized) ||
-        t.category.toLowerCase().includes(normalized) ||
-        CATEGORY_LABELS[t.category].toLowerCase().includes(normalized) ||
-        LAYOUT_LABELS[t.layout].toLowerCase().includes(normalized),
-    )
-  }, [query])
+  const filtered = useMemo(
+    () => filterTemplates(TEMPLATES, { query }),
+    [query],
+  )
 
   const showcase = filtered.filter((t) => SHOWCASE_TEMPLATE_IDS.includes(t.id as (typeof SHOWCASE_TEMPLATE_IDS)[number]))
   const rest = filtered.filter((t) => !SHOWCASE_TEMPLATE_IDS.includes(t.id as (typeof SHOWCASE_TEMPLATE_IDS)[number]))
@@ -127,22 +120,12 @@ function TemplateGrid({
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       {templates.map((template) => (
-        <button
+        <TemplateCard
           key={template.id}
-          type="button"
+          template={template}
+          variant="grid"
           onClick={() => onSelect(template)}
-          className="group overflow-hidden rounded-xl border border-border bg-card text-left transition hover:border-primary/50 hover:shadow-md"
-        >
-          <div className="p-1.5 pb-0">
-            <TemplateThumbnail template={template} className="aspect-[9/19.5] w-full rounded-lg" />
-          </div>
-          <div className="p-2.5">
-            <p className="truncate text-xs font-semibold">{template.name}</p>
-            <p className="truncate text-[10px] text-muted-foreground">
-              {LAYOUT_LABELS[template.layout]}
-            </p>
-          </div>
-        </button>
+        />
       ))}
     </div>
   )

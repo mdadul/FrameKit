@@ -1,39 +1,53 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import {
-  DEFAULT_DEVICE_HEIGHT,
-  DEFAULT_DEVICE_SHADOW_INTENSITY,
-  DEFAULT_DEVICE_SHADOW_SPREAD,
-  DEFAULT_DEVICE_WIDTH,
-  DEFAULT_DEVICE_X,
-  DEFAULT_DEVICE_Y,
-  MAX_SCREENS,
-} from '@/lib/constants'
-import {
-  cloneScreenDesign,
   createImageElement,
   createProject,
-  createScreenFromPrevious,
   createShapeElement,
   createTextElement,
-  duplicateElement,
-  reindexElements,
-  sortElementsByZIndex,
 } from '@/lib/factories'
-import { saveProject } from '@/lib/db'
 import {
-  cloneScreenForAndroid,
-  getScreenPlatform,
-  isAppleScreen,
-  sortScreensByPlatform,
-} from '@/lib/platform-copy'
-import { createId } from '@/lib/utils'
+  resetElementCoalesce,
+  resolveElementUpdateHistory,
+} from '@/stores/project/element-update-coalesce'
+import {
+  alignElementsOnScreen,
+  alignElementsToArtboard,
+  distributeElementsOnScreen,
+} from '@/stores/project/element-alignment'
+import {
+  addElementToScreen,
+  bringForwardElement,
+  deleteElementsFromScreen,
+  duplicateElementsOnScreen,
+  findScreenById,
+  groupElementsOnScreen,
+  reorderElementsOnScreen,
+  sendBackwardElement,
+  ungroupElementsOnScreen,
+  updateElementOnScreen,
+} from '@/stores/project/element-mutations'
+import { createDefaultDeviceElement } from '@/stores/project/create-device-element'
+import {
+  addScreenToProject,
+  applyTemplateToAllScreensInProject,
+  applyTemplateToScreenInProject,
+  copyAllScreensToAndroidInProject,
+  copyScreenToAndroidInProject,
+  deleteScreenFromProject,
+  duplicateScreenInProject,
+  renameScreenInProject,
+  reorderScreensInProject,
+  resolveNextActiveScreenId,
+  setScreenBackground,
+  syncLinkedAndroidScreenInProject,
+} from '@/stores/project/screen-mutations'
+import { saveProject } from '@/lib/db'
 import { useHistoryStore } from '@/stores/history-store'
 import { useEditorStore } from '@/stores/editor-store'
 import type {
   BackgroundConfig,
   BrandKit,
-  DeviceElement,
   Element,
   Project,
   Screen,
@@ -101,73 +115,7 @@ function withHistory(project: Project, recordHistory = true) {
   useHistoryStore.getState().setPresent(project, recordHistory)
 }
 
-function applyTemplateToScreenState(
-  screen: Screen,
-  elements: Element[],
-  background: BackgroundConfig,
-  mode: TemplateApplyMode = 'replace',
-) {
-  if (mode === 'background') {
-    screen.background = structuredClone(background)
-    return
-  }
-
-  const templateElements = elements.map((element, index) => ({
-    ...structuredClone(element),
-    id: createId(),
-    zIndex: index,
-  }))
-
-  if (mode === 'add-elements') {
-    const maxZ = screen.elements.reduce((max, element) => Math.max(max, element.zIndex), -1)
-    screen.elements = [
-      ...screen.elements,
-      ...templateElements.map((element, index) => ({
-        ...element,
-        zIndex: maxZ + 1 + index,
-      })),
-    ]
-    return
-  }
-
-  screen.background = structuredClone(background)
-  screen.elements = templateElements
-}
-
-function getAndroidDeviceId(screen: Screen): string | undefined {
-  const device = screen.elements.find((element) => element.type === 'device')
-  return device?.type === 'device' ? device.deviceId : undefined
-}
-
-/**
- * History coalescing for continuous interactions (slider/color drags, canvas
- * moves). Repeated `updateElement` calls that target the same element + same
- * patched fields within a short window collapse into a SINGLE undo step:
- * the first call records a history baseline, subsequent calls only replace the
- * present without pushing more past entries. The window auto-closes after
- * inactivity; `endElementCoalesce()` lets callers close it deterministically
- * (e.g. on slider commit or color popover close).
- */
-const COALESCE_WINDOW_MS = 500
-let coalesceKey: string | null = null
-let coalesceTimer: ReturnType<typeof setTimeout> | null = null
-
-function resetCoalesce() {
-  coalesceKey = null
-  if (coalesceTimer) {
-    clearTimeout(coalesceTimer)
-    coalesceTimer = null
-  }
-}
-
-function scheduleCoalesceClear() {
-  if (coalesceTimer) clearTimeout(coalesceTimer)
-  coalesceTimer = setTimeout(resetCoalesce, COALESCE_WINDOW_MS)
-}
-
-export function endElementCoalesce() {
-  resetCoalesce()
-}
+export { endElementCoalesce } from '@/stores/project/element-update-coalesce'
 
 export const useProjectStore = create<ProjectState>()(
   immer((set, get) => ({
@@ -177,7 +125,7 @@ export const useProjectStore = create<ProjectState>()(
     saveStatus: 'saved',
 
     loadProject: (project) => {
-      resetCoalesce()
+      resetElementCoalesce()
       useHistoryStore.getState().reset(project)
       set({ project, dirty: false, saveStatus: 'saved' })
     },
@@ -186,7 +134,7 @@ export const useProjectStore = create<ProjectState>()(
       // Apply an undo/redo result WITHOUT resetting the history stacks, so that
       // multi-step undo and redo keep working. The history store has already
       // advanced its present pointer; we only mirror it into project state.
-      resetCoalesce()
+      resetElementCoalesce()
       set({ project, dirty: true, saveStatus: 'unsaved' })
     },
 
@@ -249,9 +197,7 @@ export const useProjectStore = create<ProjectState>()(
 
     applyTemplateToAllScreens: (elements, background, mode = 'replace') => {
       get().updateProject((project) => {
-        for (const screen of project.screens) {
-          applyTemplateToScreenState(screen, elements, background, mode)
-        }
+        applyTemplateToAllScreensInProject(project, elements, background, mode)
       })
     },
 
@@ -263,39 +209,20 @@ export const useProjectStore = create<ProjectState>()(
 
     addScreen: () => {
       get().updateProject((project) => {
-        if (project.screens.length >= MAX_SCREENS) return
-        const previous = project.screens.at(-1)
-        project.screens.push(
-          createScreenFromPrevious(previous, `Screen ${project.screens.length + 1}`),
-        )
+        addScreenToProject(project)
       })
     },
 
     duplicateScreen: (screenId) => {
       get().updateProject((project) => {
-        if (project.screens.length >= MAX_SCREENS) return
-        const source = project.screens.find((screen) => screen.id === screenId)
-        if (!source) return
-        project.screens.push(cloneScreenDesign(source, `${source.name} copy`))
+        duplicateScreenInProject(project, screenId)
       })
     },
 
     copyScreenToAndroid: (screenId, targetDeviceId) => {
       let createdId: string | null = null
       get().updateProject((project) => {
-        const source = project.screens.find((screen) => screen.id === screenId)
-        if (!source || !isAppleScreen(source)) return
-
-        project.screens = project.screens.filter(
-          (screen) =>
-            !(getScreenPlatform(screen) === 'android' && screen.sourceScreenId === screenId),
-        )
-
-        if (project.screens.length >= MAX_SCREENS) return
-
-        const copy = cloneScreenForAndroid(source, targetDeviceId)
-        createdId = copy.id
-        project.screens = sortScreensByPlatform([...project.screens, copy])
+        createdId = copyScreenToAndroidInProject(project, screenId, targetDeviceId)
       })
       return createdId
     },
@@ -303,47 +230,15 @@ export const useProjectStore = create<ProjectState>()(
     syncLinkedAndroidScreen: (appleScreenId) => {
       let synced = false
       get().updateProject((project) => {
-        const source = project.screens.find((screen) => screen.id === appleScreenId)
-        if (!source || !isAppleScreen(source)) return
-
-        const linked = project.screens.find(
-          (screen) =>
-            getScreenPlatform(screen) === 'android' && screen.sourceScreenId === appleScreenId,
-        )
-        if (!linked) return
-
-        const targetDeviceId = getAndroidDeviceId(linked) ?? getAndroidDeviceId(source)
-        if (!targetDeviceId) return
-
-        const refreshed = cloneScreenForAndroid(source, targetDeviceId)
-        linked.background = refreshed.background
-        linked.elements = refreshed.elements
-        linked.width = refreshed.width
-        linked.height = refreshed.height
-        synced = true
+        synced = syncLinkedAndroidScreenInProject(project, appleScreenId)
       })
       return synced
     },
 
     copyAllScreensToAndroid: (targetDeviceId) => {
-      const createdIds: string[] = []
+      let createdIds: string[] = []
       get().updateProject((project) => {
-        const appleScreens = project.screens.filter(isAppleScreen)
-        if (appleScreens.length === 0) return
-
-        const appleIds = new Set(appleScreens.map((screen) => screen.id))
-        project.screens = project.screens.filter(
-          (screen) =>
-            getScreenPlatform(screen) !== 'android' ||
-            !screen.sourceScreenId ||
-            !appleIds.has(screen.sourceScreenId),
-        )
-
-        const slotsAvailable = MAX_SCREENS - project.screens.length
-        const toCopy = appleScreens.slice(0, slotsAvailable)
-        const copies = toCopy.map((screen) => cloneScreenForAndroid(screen, targetDeviceId))
-        createdIds.push(...copies.map((screen) => screen.id))
-        project.screens = sortScreensByPlatform([...project.screens, ...copies])
+        createdIds = copyAllScreensToAndroidInProject(project, targetDeviceId)
       })
       return createdIds
     },
@@ -351,15 +246,13 @@ export const useProjectStore = create<ProjectState>()(
     deleteScreen: (screenId) => {
       let nextActiveId: string | null = null
       get().updateProject((project) => {
-        if (project.screens.length <= 1) return
-        const index = project.screens.findIndex((screen) => screen.id === screenId)
-        if (index === -1) return
-        const remaining = project.screens.filter((screen) => screen.id !== screenId)
-        const activeId = useEditorStore.getState().activeScreenId
-        if (!activeId || activeId === screenId || !remaining.some((screen) => screen.id === activeId)) {
-          nextActiveId = remaining[Math.min(index, remaining.length - 1)]?.id ?? remaining[0]?.id ?? null
-        }
-        project.screens = remaining
+        const result = deleteScreenFromProject(project, screenId)
+        if (!result) return
+        nextActiveId = resolveNextActiveScreenId(
+          result.deletedIndex,
+          result.remaining,
+          useEditorStore.getState().activeScreenId,
+        )
       })
       if (nextActiveId) {
         useEditorStore.getState().focusScreen(nextActiveId, false)
@@ -370,17 +263,13 @@ export const useProjectStore = create<ProjectState>()(
 
     reorderScreens: (screenIds) => {
       get().updateProject((project) => {
-        const map = new Map(project.screens.map((screen) => [screen.id, screen]))
-        project.screens = screenIds
-          .map((id) => map.get(id))
-          .filter((screen): screen is Screen => Boolean(screen))
+        reorderScreensInProject(project, screenIds)
       })
     },
 
     renameScreen: (screenId, name) => {
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === screenId)
-        if (screen) screen.name = name
+        renameScreenInProject(project, screenId, name)
       })
     },
 
@@ -388,8 +277,8 @@ export const useProjectStore = create<ProjectState>()(
       const activeScreen = get().getActiveScreen()
       if (!activeScreen) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
-        if (screen) screen.background = background
+        const screen = findScreenById(project, activeScreen.id)
+        if (screen) setScreenBackground(screen, background)
       })
     },
 
@@ -397,32 +286,20 @@ export const useProjectStore = create<ProjectState>()(
       const activeScreen = get().getActiveScreen()
       if (!activeScreen) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        const zIndex = screen.elements.length
-        screen.elements.push({ ...element, zIndex })
+        addElementToScreen(screen, element)
       })
     },
 
     updateElement: (id, patch) => {
       const activeScreen = get().getActiveScreen()
       if (!activeScreen) return
-      // Coalesce rapid updates to the same element + same fields (slider/color
-      // drags, canvas moves) into one undo step: the first update records a
-      // baseline, later ones in the window only replace the present.
-      const key = `${id}:${Object.keys(patch).sort().join(',')}`
-      const recordHistory = key !== coalesceKey
-      coalesceKey = key
-      scheduleCoalesceClear()
+      const recordHistory = resolveElementUpdateHistory(id, patch)
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        const index = screen.elements.findIndex((element) => element.id === id)
-        if (index === -1) return
-        screen.elements[index] = {
-          ...screen.elements[index],
-          ...patch,
-        } as Element
+        updateElementOnScreen(screen, id, patch)
       }, recordHistory)
     },
 
@@ -430,11 +307,9 @@ export const useProjectStore = create<ProjectState>()(
       const activeScreen = get().getActiveScreen()
       if (!activeScreen) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        screen.elements = reindexElements(
-          sortElementsByZIndex(screen.elements).filter((element) => !ids.includes(element.id)),
-        )
+        deleteElementsFromScreen(screen, ids)
       })
     },
 
@@ -442,12 +317,9 @@ export const useProjectStore = create<ProjectState>()(
       const activeScreen = get().getActiveScreen()
       if (!activeScreen) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        const copies = screen.elements
-          .filter((element) => ids.includes(element.id))
-          .map((element) => duplicateElement(element))
-        screen.elements = reindexElements([...sortElementsByZIndex(screen.elements), ...copies])
+        duplicateElementsOnScreen(screen, ids)
       })
     },
 
@@ -455,17 +327,9 @@ export const useProjectStore = create<ProjectState>()(
       const activeScreen = get().getActiveScreen()
       if (!activeScreen) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        const map = new Map(screen.elements.map((element) => [element.id, element]))
-        const orderedIds = new Set(elementIds)
-        const ordered = elementIds
-          .map((id) => map.get(id))
-          .filter((element): element is Element => Boolean(element))
-        const remaining = sortElementsByZIndex(
-          screen.elements.filter((element) => !orderedIds.has(element.id)),
-        )
-        screen.elements = reindexElements([...ordered, ...remaining])
+        reorderElementsOnScreen(screen, elementIds)
       })
     },
 
@@ -473,13 +337,9 @@ export const useProjectStore = create<ProjectState>()(
       const activeScreen = get().getActiveScreen()
       if (!activeScreen) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        const sorted = sortElementsByZIndex(screen.elements)
-        const index = sorted.findIndex((element) => element.id === id)
-        if (index < 0 || index === sorted.length - 1) return
-        ;[sorted[index], sorted[index + 1]] = [sorted[index + 1], sorted[index]]
-        screen.elements = reindexElements(sorted)
+        bringForwardElement(screen, id)
       })
     },
 
@@ -487,13 +347,9 @@ export const useProjectStore = create<ProjectState>()(
       const activeScreen = get().getActiveScreen()
       if (!activeScreen) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        const sorted = sortElementsByZIndex(screen.elements)
-        const index = sorted.findIndex((element) => element.id === id)
-        if (index <= 0) return
-        ;[sorted[index], sorted[index - 1]] = [sorted[index - 1], sorted[index]]
-        screen.elements = reindexElements(sorted)
+        sendBackwardElement(screen, id)
       })
     },
 
@@ -502,12 +358,9 @@ export const useProjectStore = create<ProjectState>()(
       const activeScreen = get().getActiveScreen()
       if (!activeScreen) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        const groupId = createId()
-        screen.elements = screen.elements.map((element) =>
-          ids.includes(element.id) ? { ...element, groupId } : element,
-        )
+        groupElementsOnScreen(screen, ids)
       })
     },
 
@@ -515,19 +368,15 @@ export const useProjectStore = create<ProjectState>()(
       const activeScreen = get().getActiveScreen()
       if (!activeScreen) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        screen.elements = screen.elements.map((element) =>
-          element.groupId === groupId ? { ...element, groupId: undefined } : element,
-        )
+        ungroupElementsOnScreen(screen, groupId)
       })
     },
 
     applyTemplateToScreen: (screenId, elements, background, mode = 'replace') => {
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === screenId)
-        if (!screen) return
-        applyTemplateToScreenState(screen, elements, background, mode)
+        applyTemplateToScreenInProject(project, screenId, elements, background, mode)
       })
     },
 
@@ -550,67 +399,16 @@ export const useProjectStore = create<ProjectState>()(
     },
 
     addDevice: (deviceId) => {
-      const device: DeviceElement = {
-        id: createId(),
-        type: 'device',
-        name: 'Device',
-        deviceId,
-        x: DEFAULT_DEVICE_X,
-        y: DEFAULT_DEVICE_Y,
-        width: DEFAULT_DEVICE_WIDTH,
-        height: DEFAULT_DEVICE_HEIGHT,
-        rotation: 0,
-        opacity: 1,
-        locked: false,
-        visible: true,
-        zIndex: 3,
-        shadowIntensity: DEFAULT_DEVICE_SHADOW_INTENSITY,
-        shadowSpread: DEFAULT_DEVICE_SHADOW_SPREAD,
-      }
-      get().addElement(device)
+      get().addElement(createDefaultDeviceElement(deviceId))
     },
 
     alignElements: (ids, alignment) => {
       const activeScreen = get().getActiveScreen()
       if (!activeScreen || ids.length === 0) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        const selected = screen.elements.filter((element) => ids.includes(element.id))
-        if (selected.length === 0) return
-
-        const bounds = {
-          left: Math.min(...selected.map((element) => element.x)),
-          right: Math.max(...selected.map((element) => element.x + element.width)),
-          top: Math.min(...selected.map((element) => element.y)),
-          bottom: Math.max(...selected.map((element) => element.y + element.height)),
-        }
-
-        screen.elements = screen.elements.map((element) => {
-          if (!ids.includes(element.id)) return element
-          const next = { ...element }
-          switch (alignment) {
-            case 'left':
-              next.x = bounds.left
-              break
-            case 'center':
-              next.x = bounds.left + (bounds.right - bounds.left - element.width) / 2
-              break
-            case 'right':
-              next.x = bounds.right - element.width
-              break
-            case 'top':
-              next.y = bounds.top
-              break
-            case 'middle':
-              next.y = bounds.top + (bounds.bottom - bounds.top - element.height) / 2
-              break
-            case 'bottom':
-              next.y = bounds.bottom - element.height
-              break
-          }
-          return next
-        })
+        alignElementsOnScreen(screen, ids, alignment)
       })
     },
 
@@ -618,14 +416,9 @@ export const useProjectStore = create<ProjectState>()(
       const activeScreen = get().getActiveScreen()
       if (!activeScreen || ids.length === 0) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        screen.elements = screen.elements.map((element) => {
-          if (!ids.includes(element.id)) return element
-          return axis === 'horizontal'
-            ? { ...element, x: (screen.width - element.width) / 2 }
-            : { ...element, y: (screen.height - element.height) / 2 }
-        })
+        alignElementsToArtboard(screen, ids, axis)
       })
     },
 
@@ -633,39 +426,9 @@ export const useProjectStore = create<ProjectState>()(
       const activeScreen = get().getActiveScreen()
       if (!activeScreen || ids.length < 3) return
       get().updateProject((project) => {
-        const screen = project.screens.find((item) => item.id === activeScreen.id)
+        const screen = findScreenById(project, activeScreen.id)
         if (!screen) return
-        const selected = screen.elements
-          .filter((element) => ids.includes(element.id))
-          .sort((a, b) => (axis === 'horizontal' ? a.x - b.x : a.y - b.y))
-        if (selected.length < 3) return
-
-        const first = selected[0]
-        const last = selected[selected.length - 1]
-        const totalSpace =
-          axis === 'horizontal'
-            ? last.x + last.width - first.x
-            : last.y + last.height - first.y
-        const itemsSize = selected.reduce(
-          (sum, element) => sum + (axis === 'horizontal' ? element.width : element.height),
-          0,
-        )
-        const gap = (totalSpace - itemsSize) / (selected.length - 1)
-
-        let cursor = axis === 'horizontal' ? first.x : first.y
-        const positions = new Map<string, number>()
-        selected.forEach((element) => {
-          positions.set(element.id, cursor)
-          cursor += (axis === 'horizontal' ? element.width : element.height) + gap
-        })
-
-        screen.elements = screen.elements.map((element) => {
-          const position = positions.get(element.id)
-          if (position === undefined) return element
-          return axis === 'horizontal'
-            ? { ...element, x: position }
-            : { ...element, y: position }
-        })
+        distributeElementsOnScreen(screen, ids, axis)
       })
     },
   })),

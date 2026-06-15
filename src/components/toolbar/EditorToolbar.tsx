@@ -30,9 +30,9 @@ import {
   Undo2,
 } from 'lucide-react'
 import { DEVICES } from '@/lib/assets/devices'
+import { useHistoryNavigation } from '@/hooks/useHistoryNavigation'
 import { APP_NAME } from '@/lib/constants'
 import { useProjectStore } from '@/stores/project-store'
-import { useHistoryStore } from '@/stores/history-store'
 import { useEditorStore } from '@/stores/editor-store'
 import { ExportDialog } from '@/components/toolbar/ExportDialog'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
@@ -107,11 +107,7 @@ export function EditorToolbar() {
   const distributeElements = useProjectStore((state) => state.distributeElements)
   const bringForward = useProjectStore((state) => state.bringForward)
   const sendBackward = useProjectStore((state) => state.sendBackward)
-  const restoreFromHistory = useProjectStore((state) => state.restoreFromHistory)
-  const canUndo = useHistoryStore((state) => state.canUndo)
-  const canRedo = useHistoryStore((state) => state.canRedo)
-  const undo = useHistoryStore((state) => state.undo)
-  const redo = useHistoryStore((state) => state.redo)
+  const { canUndo, canRedo, undo, redo } = useHistoryNavigation()
   const selectedElementIds = useEditorStore((state) => state.selectedElementIds)
   const viewMode = useEditorStore((state) => state.viewMode)
   const setViewMode = useEditorStore((state) => state.setViewMode)
@@ -167,19 +163,13 @@ export function EditorToolbar() {
               icon={Undo2}
               label="Undo"
               disabled={!canUndo}
-              onClick={() => {
-                const restored = undo()
-                if (restored) restoreFromHistory(restored)
-              }}
+              onClick={undo}
             />
             <IconButton
               icon={Redo2}
               label="Redo"
               disabled={!canRedo}
-              onClick={() => {
-                const restored = redo()
-                if (restored) restoreFromHistory(restored)
-              }}
+              onClick={redo}
             />
             <IconButton icon={Settings} label="Settings" onClick={() => setSettingsOpen(true)} />
             <button

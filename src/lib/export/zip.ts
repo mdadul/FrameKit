@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
-import { renderScreenToBlob } from '@/lib/export/renderer'
 import { buildExportPlan } from '@/lib/export/export-plan'
-import { autoResizeScreen } from '@/lib/resize/auto-resize'
+import { prepareExportScreen } from '@/lib/export/prepare-export-screen'
+import { renderScreenToBlob } from '@/lib/export/renderer'
 import type { KonvaStageBridge } from '@/stores/editor-store'
 import type { ResizeStrategy } from '@/lib/resize/auto-resize'
 import { applyFileNamePattern } from '@/lib/utils'
@@ -40,17 +40,9 @@ export async function exportScreensAsZip(options: BulkExportOptions): Promise<Bl
     const sequence = String(screenIndex + 1).padStart(2, '0')
     const safeScreenName = screen.name.replace(/[^\w-]+/g, '_')
 
-    const resized = autoResizeScreen(screen, preset.width, preset.height, {
-      strategy: options.resizeStrategy ?? 'fit',
-    })
+    const prepared = prepareExportScreen(screen, preset, options.resizeStrategy ?? 'fit')
     const blob = await renderScreenToBlob({
-      screen: {
-        ...screen,
-        width: resized.width,
-        height: resized.height,
-        background: resized.background,
-        elements: resized.elements,
-      },
+      screen: prepared,
       assetResolver: options.assetResolver,
       scale: 1,
       format: options.format,
@@ -113,17 +105,9 @@ export async function exportSingleScreen(
   }
 
   if (options.preset) {
-    const resized = autoResizeScreen(screen, options.preset.width, options.preset.height, {
-      strategy: options.resizeStrategy ?? 'fit',
-    })
+    const prepared = prepareExportScreen(screen, options.preset, options.resizeStrategy ?? 'fit')
     return renderScreenToBlob({
-      screen: {
-        ...screen,
-        width: resized.width,
-        height: resized.height,
-        background: resized.background,
-        elements: resized.elements,
-      },
+      screen: prepared,
       assetResolver: options.assetResolver,
       scale: 1,
       format: options.format,

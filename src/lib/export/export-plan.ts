@@ -45,12 +45,14 @@ export function getSmartExportPresetIds(): string[] {
   return [...SMART_EXPORT_PRESETS]
 }
 
-export function summarizeExportPlan(items: ExportPlanItem[]): {
+export interface ExportPlanSummary {
   totalFiles: number
   appleFiles: number
   androidFiles: number
   presets: StorePreset[]
-} {
+}
+
+export function summarizeExportPlan(items: ExportPlanItem[]): ExportPlanSummary {
   const presetMap = new Map<string, StorePreset>()
   let appleFiles = 0
   let androidFiles = 0

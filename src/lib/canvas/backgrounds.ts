@@ -1,5 +1,6 @@
 import type { BackgroundConfig, MeshBlob, PatternKind } from '@/lib/types'
 import { BRAND_PRIMARY } from '@/lib/constants'
+import { fillRectWithCanvasGradient } from '@/lib/canvas/create-canvas-gradient'
 
 export interface BackgroundPreset {
   id: string
@@ -329,33 +330,16 @@ export function buildBackgroundCanvas(
     (background.type === 'linear-gradient' || background.type === 'radial-gradient') &&
     background.gradient
   ) {
-    let gradient: CanvasGradient
-    if (background.type === 'radial-gradient') {
-      gradient = ctx.createRadialGradient(
-        width / 2,
-        height / 2,
-        0,
-        width / 2,
-        height / 2,
-        Math.max(width, height) / 2,
-      )
-    } else {
-      const angle = ((background.gradient.angle ?? 180) * Math.PI) / 180
-      const cx = width / 2
-      const cy = height / 2
-      const len = Math.max(width, height)
-      gradient = ctx.createLinearGradient(
-        cx - (Math.cos(angle) * len) / 2,
-        cy - (Math.sin(angle) * len) / 2,
-        cx + (Math.cos(angle) * len) / 2,
-        cy + (Math.sin(angle) * len) / 2,
-      )
-    }
-    for (const stop of background.gradient.stops) {
-      gradient.addColorStop(stop.offset, stop.color)
-    }
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, width, height)
+    fillRectWithCanvasGradient(
+      ctx,
+      {
+        type: background.type === 'radial-gradient' ? 'radial' : 'linear',
+        angle: background.gradient.angle,
+        stops: background.gradient.stops,
+      },
+      width,
+      height,
+    )
     return canvas
   }
 
