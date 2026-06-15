@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Group, Layer, Stage, Transformer } from 'react-konva'
+import { Group, Layer, Rect, Stage, Transformer } from 'react-konva'
 import type Konva from 'konva'
 import { Maximize2, Minus, Plus, Target } from 'lucide-react'
 import { ToolbarTooltipButton } from '@/components/ui/ToolbarTooltipButton'
 import { ScreenArtboard } from '@/components/canvas/ScreenArtboard'
+import { CulledScreenPlaceholder } from '@/components/canvas/CulledScreenPlaceholder'
+import { InteractionOverlay, type InteractionOverlayHandle } from '@/components/canvas/InteractionOverlay'
+import { CanvasPerfOverlay } from '@/components/canvas/CanvasPerfOverlay'
 import { ScreenContextMenu } from '@/components/canvas/ScreenContextMenu'
 import { AddScreenFrame } from '@/components/canvas/AddScreenFrame'
 import { MAX_ELEMENTS_SOFT, MAX_SCREENS } from '@/lib/constants'
@@ -13,7 +16,23 @@ import {
   getAddFrameSize,
   getWorkspaceBounds,
 } from '@/lib/canvas/workspace-layout'
-import { applySnapping, computeSnap, rectsIntersect, type SnapLine } from '@/lib/canvas/helpers'
+import { applySnapping, computeSnap, rectsIntersect } from '@/lib/canvas/helpers'
+import { useBatchDraw } from '@/lib/canvas/perf/batch-draw'
+import { applyKonvaPixelRatio } from '@/lib/canvas/perf/konva-config'
+import { exportActiveScreenBlobFromStage } from '@/lib/canvas/konva-export'
+import {
+  getWorkspaceViewport,
+  rectsIntersectViewport,
+} from '@/lib/canvas/perf/viewport'
+import {
+  SELECTION_BLUE,
+  SELECTION_HANDLE_FILL,
+  TRANSFORMER_ANCHOR_CORNER_RADIUS,
+  TRANSFORMER_ANCHOR_SIZE,
+  TRANSFORMER_ANCHOR_STROKE_WIDTH,
+  TRANSFORMER_BORDER_WIDTH,
+  TRANSFORMER_ROTATE_OFFSET,
+} from '@/lib/canvas/selection-style'
 import { getDevice } from '@/lib/assets/devices'
 import { createAssetFromFile, createAssetObjectUrl } from '@/lib/assets/image-pipeline'
 import { createImageElement } from '@/lib/factories'
@@ -33,10 +52,45 @@ interface CanvasWorkspaceProps {
 const MIN_ZOOM = 0.08
 const MAX_ZOOM = 2.5
 
+function getGroupOrigin(screen: Screen, groupId: string) {
+  const members = screen.elements.filter((item) => item.groupId === groupId)
+  return {
+    x: Math.min(...members.map((item) => item.x)),
+    y: Math.min(...members.map((item) => item.y)),
+  }
+}
+
+function getAbsoluteNodePosition(element: Element, screen: Screen, node: Konva.Node) {
+  if (!element.groupId) {
+    return { x: node.x(), y: node.y() }
+  }
+  const origin = getGroupOrigin(screen, element.groupId)
+  return { x: origin.x + node.x(), y: origin.y + node.y() }
+}
+
+function setAbsoluteNodePosition(
+  element: Element,
+  screen: Screen,
+  node: Konva.Node,
+  absoluteX: number,
+  absoluteY: number,
+) {
+  if (!element.groupId) {
+    node.x(absoluteX)
+    node.y(absoluteY)
+    return
+  }
+  const origin = getGroupOrigin(screen, element.groupId)
+  node.x(absoluteX - origin.x)
+  node.y(absoluteY - origin.y)
+}
+
 export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage>(null)
+  const contentLayerRef = useRef<Konva.Layer>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
+  const overlayRef = useRef<InteractionOverlayHandle>(null)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
   const marqueeStartRef = useRef<{
     screenId: string
@@ -49,15 +103,9 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
 
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   const [containerRect, setContainerRect] = useState<DOMRect | null>(null)
-  const [guides, setGuides] = useState<SnapLine[]>([])
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
-  const [localMarquee, setLocalMarquee] = useState<{
-    x: number
-    y: number
-    width: number
-    height: number
-  } | null>(null)
+  const [hoveredScreenId, setHoveredScreenId] = useState<string | null>(null)
   const [screenContextMenu, setScreenContextMenu] = useState<{
     screenId: string
     x: number
@@ -96,7 +144,35 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
   const showRulers = useSettingsStore((state) => state.preferences.workspace.showRulers)
   const snapSensitivity = useSettingsStore((state) => state.preferences.workspace.snapSensitivity)
   const canvasCheckerboard = useSettingsStore((state) => state.preferences.workspace.canvasCheckerboard)
-  const elementCount = useProjectStore((state) => state.getElementCount())
+  const highDpiCanvas = useSettingsStore((state) => state.preferences.workspace.highDpiCanvas)
+  const elementCount = useProjectStore(
+    (state) => state.project?.screens.reduce((sum, screen) => sum + screen.elements.length, 0) ?? 0,
+  )
+
+  const setKonvaStageBridge = useEditorStore((state) => state.setKonvaStageBridge)
+
+  const scheduleDraw = useBatchDraw(stageRef)
+
+  useEffect(() => {
+    applyKonvaPixelRatio(highDpiCanvas)
+    const stage = stageRef.current
+    if (!stage) return
+    stage.width(stage.width())
+    stage.height(stage.height())
+    stage.draw()
+  }, [highDpiCanvas])
+
+  const viewport = useMemo(
+    () =>
+      getWorkspaceViewport(
+        containerSize.width,
+        containerSize.height,
+        panX,
+        panY,
+        workspaceZoom,
+      ),
+    [containerSize.width, containerSize.height, panX, panY, workspaceZoom],
+  )
 
   const activeScreen = screens.find((screen) => screen.id === activeScreenId)
 
@@ -216,12 +292,42 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
   const setActiveScreen = useCallback(
     (screenId: string, options?: { clearSelection?: boolean }) => {
       const { activeScreenId: current } = useEditorStore.getState()
-      if (current === screenId) return
-      setActiveScreenId(screenId)
+      if (current !== screenId) {
+        setActiveScreenId(screenId)
+      }
       if (options?.clearSelection) clearSelection()
     },
     [setActiveScreenId, clearSelection],
   )
+
+
+  useEffect(() => {
+    if (!activeScreenId) return
+    const pos = screenLayout[activeScreenId]
+    if (pos) overlayRef.current?.setScreenOffset(pos.x, pos.y)
+  }, [activeScreenId, screenLayout])
+
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) {
+      setKonvaStageBridge(null)
+      return
+    }
+
+    setKonvaStageBridge({
+      activeScreenId,
+      exportActiveScreen: async (screenId, options) => {
+        const currentStage = stageRef.current
+        if (!currentStage || screenId !== activeScreenId) return null
+        return exportActiveScreenBlobFromStage(
+          { stage: currentStage, screenId, isActiveOnCanvas: true },
+          options,
+        )
+      },
+    })
+
+    return () => setKonvaStageBridge(null)
+  }, [activeScreenId, setKonvaStageBridge])
 
   useEffect(() => {
     const transformer = transformerRef.current
@@ -230,13 +336,23 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
     const screen = screens.find((item) => item.id === activeScreenId)
     if (!screen) return
     const lockedIds = new Set(screen.elements.filter((item) => item.locked).map((item) => item.id))
+    const screenElementIds = new Set(screen.elements.map((item) => item.id))
     const nodes = selectedElementIds
+      .filter((id) => screenElementIds.has(id))
       .filter((id) => !lockedIds.has(id))
       .map((id) => stage.findOne(`#${id}`))
       .filter((node): node is Konva.Node => Boolean(node))
     transformer.nodes(nodes)
-    transformer.getLayer()?.batchDraw()
-  }, [selectedElementIds, screens, activeScreenId])
+    transformer.forceUpdate()
+    scheduleDraw()
+  }, [selectedElementIds, screens, activeScreenId, scheduleDraw])
+
+  useEffect(() => {
+    const transformer = transformerRef.current
+    if (!transformer) return
+    transformer.forceUpdate()
+    scheduleDraw()
+  }, [workspaceZoom, scheduleDraw])
 
   const selectedDeviceAspect = useMemo(() => {
     if (!activeScreen || selectedElementIds.length !== 1) return null
@@ -297,7 +413,7 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
         snapSensitivity,
       )
     }
-    setGuides([])
+    overlayRef.current?.clear()
     updateElement(id, next)
   }
 
@@ -307,7 +423,8 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
     const screen = screens.find((item) => item.id === screenId)
     const element = screen?.elements.find((item) => item.id === id)
     if (!screen || !element) return
-    const moving = { ...element, x: node.x(), y: node.y() } as Element
+    const absolute = getAbsoluteNodePosition(element, screen, node)
+    const moving = { ...element, x: absolute.x, y: absolute.y } as Element
     const others = screen.elements.filter((item) => item.id !== id)
     const { x, y, lines } = computeSnap(
       moving,
@@ -316,9 +433,9 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
       screen.height,
       snapSensitivity,
     )
-    node.x(x)
-    node.y(y)
-    setGuides(lines)
+    setAbsoluteNodePosition(element, screen, node, x, y)
+    overlayRef.current?.setGuides(lines, screen.width, screen.height)
+    scheduleDraw()
   }
 
   const beginTextEdit = (screenId: string, id: string) => {
@@ -359,7 +476,7 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
       y: pos.y,
       additive,
     }
-    setLocalMarquee({ x: pos.x, y: pos.y, width: 0, height: 0 })
+    overlayRef.current?.setMarquee({ x: pos.x, y: pos.y, width: 0, height: 0 })
   }
 
   const handleStageMouseMove = () => {
@@ -369,7 +486,7 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
     const group = stage?.findOne(`#screen-${start.screenId}`)
     const pos = group?.getRelativePointerPosition()
     if (!pos) return
-    setLocalMarquee({
+    overlayRef.current?.setMarquee({
       x: Math.min(start.x, pos.x),
       y: Math.min(start.y, pos.y),
       width: Math.abs(pos.x - start.x),
@@ -380,12 +497,19 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
   const handleStageMouseUp = () => {
     const start = marqueeStartRef.current
     if (!start) return
-    const rect = localMarquee
+    const rect = overlayRef.current?.getMarquee()
     marqueeStartRef.current = null
-    setLocalMarquee(null)
+    overlayRef.current?.clear()
 
     const screen = screens.find((item) => item.id === start.screenId)
-    if (!screen || !rect || (rect.width < 3 && rect.height < 3)) return
+    if (!screen || !rect) return
+
+    if (rect.width < 3 && rect.height < 3) {
+      if (!start.additive) {
+        clearSelection()
+      }
+      return
+    }
 
     const hits = screen.elements
       .filter((item) => item.visible && rectsIntersect(item, rect))
@@ -593,12 +717,15 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
           {elementCount} elements — consider simplifying for best performance
         </div>
       )}
+      <CanvasPerfOverlay
+        elementCount={elementCount}
+        screenCount={screens.length}
+        zoom={workspaceZoom}
+      />
       <Stage
         ref={stageRef}
         width={containerSize.width}
         height={containerSize.height}
-        scaleX={workspaceZoom}
-        scaleY={workspaceZoom}
         x={panX}
         y={panY}
         onMouseDown={handleStageMouseDown}
@@ -609,52 +736,104 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
           handleScreenContextMenu(event.evt)
         }}
       >
-        <Layer>
-          {screens.map((screen) => {
-            const pos = screenLayout[screen.id]
-            if (!pos) return null
-            const isActive = screen.id === activeScreenId
-            return (
-              <Group key={screen.id} id={`screen-${screen.id}`} x={pos.x} y={pos.y}>
-                <ScreenArtboard
-                  screenId={screen.id}
-                  width={screen.width}
-                  height={screen.height}
-                  background={screen.background}
-                  elements={screen.elements}
-                  assetResolver={assetResolver}
-                  isActive={isActive}
-                  workspaceZoom={workspaceZoom}
-                  selectedElementIds={selectedElementIds}
-                  editingTextId={editingTextId}
-                  guides={isActive ? guides : []}
-                  marquee={isActive ? localMarquee : null}
-                  showGrid={showGrid}
-                  gridSize={gridSize}
-                  onSelect={(id, additive) => handleSelect(screen.id, id, additive)}
-                  onChange={(id, patch) => handleElementChange(screen.id, id, patch)}
-                  onDragMove={(id, node) => handleDragMove(screen.id, id, node)}
-                  onStartTextEdit={(id) => beginTextEdit(screen.id, id)}
-                  onArtboardBackgroundClick={(additive) => handleArtboardMouseDown(screen.id, additive)}
-                />
-              </Group>
-            )
-          })}
-          {!atScreenLimit && (
-            <AddScreenFrame
-              x={addFramePos.x}
-              y={addFramePos.y}
-              width={addFrameSize.width}
-              height={addFrameSize.height}
-              workspaceZoom={workspaceZoom}
-              disabled={atScreenLimit}
-              onAdd={handleAddScreen}
-            />
-          )}
+        <Layer ref={contentLayerRef} name="content">
+          <Group scaleX={workspaceZoom} scaleY={workspaceZoom} name="workspace-content">
+            {screens.map((screen) => {
+              const pos = screenLayout[screen.id]
+              if (!pos) return null
+              const isActive = screen.id === activeScreenId
+              const inViewport = rectsIntersectViewport(
+                { x: pos.x, y: pos.y, width: screen.width, height: screen.height },
+                viewport,
+              )
+
+              return (
+                <Group
+                  key={screen.id}
+                  id={`screen-${screen.id}`}
+                  x={pos.x}
+                  y={pos.y}
+                  onMouseEnter={() => setHoveredScreenId(screen.id)}
+                  onMouseLeave={() =>
+                    setHoveredScreenId((current) => (current === screen.id ? null : current))
+                  }
+                >
+                  {!inViewport ? (
+                    <>
+                      <CulledScreenPlaceholder
+                        width={screen.width}
+                        height={screen.height}
+                        screenName={screen.name}
+                      />
+                      <Group
+                        onMouseDown={() => setActiveScreenId(screen.id)}
+                        listening
+                      >
+                        <Rect
+                          width={screen.width}
+                          height={screen.height}
+                          fill="transparent"
+                        />
+                      </Group>
+                    </>
+                  ) : (
+                    <Group opacity={isActive ? 1 : 0.97}>
+                      <ScreenArtboard
+                        screenId={screen.id}
+                        screenName={screen.name}
+                        width={screen.width}
+                        height={screen.height}
+                        background={screen.background}
+                        elements={screen.elements}
+                        assetResolver={assetResolver}
+                        isActive={isActive}
+                        isHovered={hoveredScreenId === screen.id}
+                        workspaceZoom={workspaceZoom}
+                        selectedElementIds={selectedElementIds}
+                        editingTextId={editingTextId}
+                        showGrid={showGrid && isActive}
+                        gridSize={gridSize}
+                        onSelect={(id, additive) => handleSelect(screen.id, id, additive)}
+                        onChange={(id, patch) => handleElementChange(screen.id, id, patch)}
+                        onDragMove={(id, node) => handleDragMove(screen.id, id, node)}
+                        onStartTextEdit={(id) => beginTextEdit(screen.id, id)}
+                        onArtboardBackgroundClick={(additive) =>
+                          handleArtboardMouseDown(screen.id, additive)
+                        }
+                      />
+                    </Group>
+                  )}
+                </Group>
+              )
+            })}
+            {!atScreenLimit && (
+              <AddScreenFrame
+                x={addFramePos.x}
+                y={addFramePos.y}
+                width={addFrameSize.width}
+                height={addFrameSize.height}
+                workspaceZoom={workspaceZoom}
+                disabled={atScreenLimit}
+                onAdd={handleAddScreen}
+              />
+            )}
+          </Group>
           <Transformer
             ref={transformerRef}
             rotateEnabled={!selectedDeviceAspect}
             keepRatio={false}
+            borderStroke={SELECTION_BLUE}
+            borderStrokeWidth={TRANSFORMER_BORDER_WIDTH}
+            anchorFill={SELECTION_HANDLE_FILL}
+            anchorStroke={SELECTION_BLUE}
+            anchorStrokeWidth={TRANSFORMER_ANCHOR_STROKE_WIDTH}
+            anchorSize={TRANSFORMER_ANCHOR_SIZE}
+            anchorCornerRadius={TRANSFORMER_ANCHOR_CORNER_RADIUS}
+            rotateAnchorOffset={TRANSFORMER_ROTATE_OFFSET}
+            padding={0}
+            anchorStyleFunc={(anchor) => {
+              anchor.hitStrokeWidth(14)
+            }}
             enabledAnchors={
               selectedDeviceAspect
                 ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
@@ -677,6 +856,11 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
               return newBox
             }}
           />
+        </Layer>
+        <Layer name="ui">
+          <Group scaleX={workspaceZoom} scaleY={workspaceZoom} name="workspace-ui">
+            <InteractionOverlay ref={overlayRef} workspaceZoom={workspaceZoom} />
+          </Group>
         </Layer>
       </Stage>
 

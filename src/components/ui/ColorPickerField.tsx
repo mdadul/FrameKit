@@ -10,6 +10,7 @@ interface ColorPickerFieldProps {
   /** Fired once when the picker popover closes. Optional; live `onChange` still fires while dragging. */
   onCommit?: (value: string) => void
   compact?: boolean
+  variant?: 'default' | 'property'
 }
 
 export function ColorPickerField({
@@ -18,10 +19,19 @@ export function ColorPickerField({
   onChange,
   onCommit,
   compact = false,
+  variant = 'default',
 }: ColorPickerFieldProps) {
+  const isProperty = variant === 'property'
+
   return (
-    <div className={cn('min-w-0', compact ? 'space-y-1' : 'space-y-1.5')}>
-      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+    <div className={cn('min-w-0', compact || isProperty ? 'space-y-1' : 'space-y-1.5')}>
+      <span
+        className={cn(
+          isProperty
+            ? 'text-[11px] font-medium text-muted-foreground'
+            : 'text-[10px] font-medium uppercase tracking-wide text-muted-foreground',
+        )}
+      >
         {label}
       </span>
       <Popover.Root
@@ -37,20 +47,27 @@ export function ColorPickerField({
             type="button"
             className={cn(
               'flex w-full min-w-0 items-center rounded-md transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/40',
-              compact
-                ? 'h-7 gap-1.5 bg-muted/40 px-1.5 hover:bg-muted/55'
-                : 'h-8 gap-2 bg-muted/40 px-2 hover:bg-muted/55',
+              isProperty
+                ? 'h-8 gap-2 border border-input bg-card px-2 hover:bg-muted/30'
+                : compact
+                  ? 'h-7 gap-1.5 bg-muted/40 px-1.5 hover:bg-muted/55'
+                  : 'h-8 gap-2 bg-muted/40 px-2 hover:bg-muted/55',
             )}
             aria-label={`${label} color picker`}
           >
             <span
               className={cn(
-                'shrink-0 rounded-sm border border-border/60',
-                compact ? 'h-4 w-4' : 'h-5 w-5',
+                'shrink-0 rounded-[3px] border border-border/70 shadow-sm',
+                compact || isProperty ? 'h-4 w-4' : 'h-5 w-5',
               )}
               style={{ backgroundColor: value }}
             />
-            <span className="min-w-0 flex-1 truncate text-left font-mono text-[10px] uppercase tabular-nums text-foreground">
+            <span
+              className={cn(
+                'min-w-0 flex-1 truncate text-left font-mono tabular-nums text-foreground',
+                isProperty ? 'text-[11px] uppercase' : 'text-[10px] uppercase',
+              )}
+            >
               {value}
             </span>
           </button>

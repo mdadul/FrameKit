@@ -1,4 +1,5 @@
 import { computePlatformLayout } from '@/lib/canvas/workspace-layout'
+import type { KonvaExportOptions } from '@/lib/canvas/konva-export'
 import type { Screen } from '@/lib/types'
 import { create } from 'zustand'
 
@@ -7,6 +8,14 @@ export type FitRequest = 'all' | 'active' | null
 export interface ScreenPosition {
   x: number
   y: number
+}
+
+export interface KonvaStageBridge {
+  activeScreenId: string | null
+  exportActiveScreen: (
+    screenId: string,
+    options: KonvaExportOptions,
+  ) => Promise<Blob | null>
 }
 
 interface EditorState {
@@ -25,6 +34,7 @@ interface EditorState {
   clipboard: import('@/lib/types').Element[] | null
   styleClipboard: Partial<import('@/lib/types').Element> | null
   marquee: { x: number; y: number; width: number; height: number; screenId: string } | null
+  konvaStageBridge: KonvaStageBridge | null
   setSelectedElementIds: (ids: string[]) => void
   toggleSelection: (id: string) => void
   clearSelection: () => void
@@ -44,6 +54,7 @@ interface EditorState {
   setClipboard: (elements: import('@/lib/types').Element[] | null) => void
   setStyleClipboard: (style: Partial<import('@/lib/types').Element> | null) => void
   setMarquee: (marquee: EditorState['marquee']) => void
+  setKonvaStageBridge: (bridge: KonvaStageBridge | null) => void
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -62,6 +73,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   clipboard: null,
   styleClipboard: null,
   marquee: null,
+  konvaStageBridge: null,
 
   setSelectedElementIds: (ids) => set({ selectedElementIds: ids }),
   toggleSelection: (id) => {
@@ -103,4 +115,5 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setClipboard: (elements) => set({ clipboard: elements }),
   setStyleClipboard: (style) => set({ styleClipboard: style }),
   setMarquee: (marquee) => set({ marquee }),
+  setKonvaStageBridge: (bridge) => set({ konvaStageBridge: bridge }),
 }))

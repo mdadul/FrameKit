@@ -116,7 +116,6 @@ export function EditorToolbar() {
   const viewMode = useEditorStore((state) => state.viewMode)
   const setViewMode = useEditorStore((state) => state.setViewMode)
   const [exportOpen, setExportOpen] = useState(false)
-  const [smartExport, setSmartExport] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
@@ -185,23 +184,8 @@ export function EditorToolbar() {
             <IconButton icon={Settings} label="Settings" onClick={() => setSettingsOpen(true)} />
             <button
               type="button"
-              onClick={() => {
-                setSmartExport(true)
-                setExportOpen(true)
-              }}
-              title="Smart export (Apple + Android phone)"
-              className="hidden h-9 shrink-0 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-sm font-medium hover:bg-muted sm:inline-flex"
-            >
-              <Download size={16} />
-              Smart
-            </button>
-            <button
-              type="button"
               data-tour="export-btn"
-              onClick={() => {
-                setSmartExport(false)
-                setExportOpen(true)
-              }}
+              onClick={() => setExportOpen(true)}
               title="Export"
               className="ml-1 inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 sm:px-4"
             >
@@ -382,14 +366,7 @@ export function EditorToolbar() {
           </div>
         </div>
       </header>
-      <ExportDialog
-        open={exportOpen}
-        onOpenChange={(open) => {
-          setExportOpen(open)
-          if (!open) setSmartExport(false)
-        }}
-        smartExport={smartExport}
-      />
+      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} />
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}

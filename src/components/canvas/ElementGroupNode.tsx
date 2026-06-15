@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Group } from 'react-konva'
 import type Konva from 'konva'
 import { ElementNode } from '@/components/canvas/ElementNode'
@@ -7,6 +8,7 @@ import type { Element } from '@/lib/types'
 interface ElementGroupNodeProps {
   groupId: string
   elements: Element[]
+  isActive: boolean
   selectedElementIds: string[]
   assetResolver: (assetId?: string) => string | undefined
   editingTextId: string | null
@@ -16,9 +18,10 @@ interface ElementGroupNodeProps {
   onStartTextEdit?: (id: string) => void
 }
 
-export function ElementGroupNode({
+function ElementGroupNodeInner({
   groupId,
   elements,
+  isActive,
   selectedElementIds,
   assetResolver,
   editingTextId,
@@ -47,12 +50,25 @@ export function ElementGroupNode({
     }
   }
 
+  const childDraggable = isActive && !anyLocked && !allSelected
+
+  const handleChildChange = (id: string, patch: Partial<Element>) => {
+    const next = { ...patch }
+    if (typeof next.x === 'number') next.x = minX + next.x
+    if (typeof next.y === 'number') next.y = minY + next.y
+    onChange(id, next)
+  }
+
+  const handleChildDragMove = (id: string, node: Konva.Node) => {
+    onDragMove?.(id, node)
+  }
+
   return (
     <Group
       id={`group-${groupId}`}
       x={minX}
       y={minY}
-      draggable={!anyLocked && allSelected}
+      draggable={isActive && !anyLocked && allSelected}
       onClick={(event) => {
         event.cancelBubble = true
         handleGroupSelect(event.evt.shiftKey)
@@ -81,9 +97,10 @@ export function ElementGroupNode({
           }}
           selected={selectedElementIds.includes(element.id)}
           assetResolver={assetResolver}
+          draggable={childDraggable && !element.locked}
           onSelect={onSelect}
-          onChange={onChange}
-          onDragMove={onDragMove}
+          onChange={handleChildChange}
+          onDragMove={handleChildDragMove}
           onStartTextEdit={onStartTextEdit}
           editingTextId={editingTextId}
         />
@@ -91,3 +108,5 @@ export function ElementGroupNode({
     </Group>
   )
 }
+
+export const ElementGroupNode = memo(ElementGroupNodeInner)

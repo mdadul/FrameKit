@@ -26,14 +26,30 @@ describe('autoResizeScreen', () => {
     }
   })
 
-  it('preserves element count and ordering', () => {
+  it('uses fill strategy with larger scale than fit', () => {
     const screen = createScreen()
     screen.elements = [
-      createTextElement({ zIndex: 0 }),
-      createTextElement({ zIndex: 1 }),
+      createTextElement({
+        x: 100,
+        y: 200,
+        width: 500,
+        height: 80,
+        fontSize: 64,
+      }),
     ]
 
-    const result = autoResizeScreen(screen, 1080, 1920)
-    expect(result.elements).toHaveLength(2)
+    const fit = autoResizeScreen(screen, 1080, 1920, { strategy: 'fit' })
+    const fill = autoResizeScreen(screen, 1080, 1920, { strategy: 'fill' })
+
+    expect(fill.elements[0].width).toBeGreaterThan(fit.elements[0].width)
+  })
+
+  it('aligns crop strategy further left than centered fit', () => {
+    const screen = createScreen()
+    screen.elements = [createTextElement({ x: 100, y: 200, width: 400, height: 80 })]
+
+    const fit = autoResizeScreen(screen, 1080, 1920, { strategy: 'fit' })
+    const crop = autoResizeScreen(screen, 1080, 1920, { strategy: 'crop' })
+    expect(crop.elements[0].x).toBeLessThan(fit.elements[0].x)
   })
 })

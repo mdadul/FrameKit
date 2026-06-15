@@ -70,6 +70,7 @@ export const DEFAULT_WORKSPACE: WorkspacePreferences = {
   defaultZoom: 0.35,
   nudgeStep: 1,
   canvasCheckerboard: true,
+  highDpiCanvas: true,
 }
 
 export const DEFAULT_EXPORT_PREFS: ExportPreferences = {
@@ -79,6 +80,7 @@ export const DEFAULT_EXPORT_PREFS: ExportPreferences = {
   transparentBackground: false,
   fileNamePattern: '{project}-{screen}-{preset}',
   lastUsedPresets: [],
+  resizeStrategy: 'fit',
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {

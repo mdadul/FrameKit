@@ -16,7 +16,10 @@ import { BRAND_PRIMARY } from '@/lib/constants'
 export interface RenderScreenOptions {
   screen: Screen
   assetResolver: (assetId?: string) => string | undefined
-  scale?: 1 | 2 | 3
+  /** Output scale multiplier (same effect as Konva's pixelRatio on toDataURL). */
+  scale?: number
+  /** Konva-compatible alias for scale — 2 exports at 2× pixel dimensions. */
+  pixelRatio?: number
   format?: ExportFormat
   jpegQuality?: number
   transparentBackground?: boolean
@@ -431,11 +434,14 @@ export async function renderScreenToDataUrl(
   const {
     screen,
     assetResolver,
-    scale = 1,
+    scale: scaleOption,
+    pixelRatio,
     format = 'png',
     jpegQuality = 0.92,
     transparentBackground = false,
   } = options
+
+  const scale = pixelRatio ?? scaleOption ?? 1
 
   const canvas = document.createElement('canvas')
   canvas.width = screen.width * scale

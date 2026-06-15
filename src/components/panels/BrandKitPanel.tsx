@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Plus, RotateCcw, Sparkles, Type, X } from 'lucide-react'
-import { DEFAULT_BRAND_KIT, BRAND_PRIMARY } from '@/lib/constants'
+import { DEFAULT_BRAND_KIT, BRAND_PRIMARY, GOOGLE_FONTS } from '@/lib/constants'
 import { useEditorStore } from '@/stores/editor-store'
 import { useProjectStore } from '@/stores/project-store'
 import { useBrandKit, useBrandKitActions } from '@/hooks/useBrandKit'
@@ -83,6 +83,7 @@ export function BrandKitPanel() {
   const selectedElementIds = useEditorStore((state) => state.selectedElementIds)
   const selection = useSelectionContext()
   const [draftColor, setDraftColor] = useState(BRAND_PRIMARY)
+  const [draftFont, setDraftFont] = useState('Inter')
 
   const applyColor = (color: string) => {
     if (!selection.canApplyColor) return
@@ -118,6 +119,17 @@ export function BrandKitPanel() {
 
   const removeColor = (color: string) => {
     updateBrandKit({ colors: brandKit.colors.filter((item) => item !== color) })
+  }
+
+  const addFont = () => {
+    const font = draftFont.trim()
+    if (!font || brandKit.fonts.includes(font)) return
+    updateBrandKit({ fonts: [...brandKit.fonts, font] })
+  }
+
+  const removeFont = (font: string) => {
+    if (brandKit.fonts.length <= 1) return
+    updateBrandKit({ fonts: brandKit.fonts.filter((item) => item !== font) })
   }
 
   const resetColors = async () => {
@@ -292,42 +304,78 @@ export function BrandKitPanel() {
 
         <div className="space-y-1.5">
           {brandKit.fonts.map((font) => (
-            <button
-              key={font}
-              type="button"
-              disabled={!selection.canApplyFont}
-              onClick={() => applyFont(font)}
-              className={cn(
-                'group flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                selection.canApplyFont
-                  ? 'border-border/60 bg-card hover:border-primary/40 hover:bg-muted/40'
-                  : 'border-border/40 bg-card/50 cursor-default opacity-70',
-              )}
-            >
-              <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-lg font-medium text-foreground"
-                style={{ fontFamily: font }}
-                aria-hidden
+            <div key={font} className="group relative">
+              <button
+                type="button"
+                disabled={!selection.canApplyFont}
+                onClick={() => applyFont(font)}
+                className={cn(
+                  'group flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  selection.canApplyFont
+                    ? 'border-border/60 bg-card hover:border-primary/40 hover:bg-muted/40'
+                    : 'border-border/40 bg-card/50 cursor-default opacity-70',
+                )}
               >
-                Aa
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">{font}</p>
-                <p
-                  className="truncate text-xs text-muted-foreground"
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-lg font-medium text-foreground"
                   style={{ fontFamily: font }}
+                  aria-hidden
                 >
-                  The quick brown fox
-                </p>
-              </div>
-              {selection.canApplyFont && (
-                <Type
-                  size={14}
-                  className="shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100"
-                />
+                  Aa
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{font}</p>
+                  <p
+                    className="truncate text-xs text-muted-foreground"
+                    style={{ fontFamily: font }}
+                  >
+                    The quick brown fox
+                  </p>
+                </div>
+                {selection.canApplyFont && (
+                  <Type
+                    size={14}
+                    className="shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100"
+                  />
+                )}
+              </button>
+              {brandKit.fonts.length > 1 && (
+                <button
+                  type="button"
+                  aria-label={`Remove font ${font}`}
+                  className="absolute -top-1.5 -right-1.5 hidden h-4 w-4 items-center justify-center rounded-full bg-destructive text-white shadow-sm group-hover:flex"
+                  onClick={() => removeFont(font)}
+                >
+                  <X size={10} />
+                </button>
               )}
-            </button>
+            </div>
           ))}
+        </div>
+
+        <div className="space-y-2 border-t border-border/60 pt-3">
+          <p className="text-[11px] font-medium text-muted-foreground">Add font</p>
+          <select
+            className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm"
+            value={draftFont}
+            onChange={(event) => setDraftFont(event.target.value)}
+          >
+            {GOOGLE_FONTS.filter((font) => !brandKit.fonts.includes(font)).map((font) => (
+              <option key={font} value={font}>
+                {font}
+              </option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-9 w-full border border-dashed border-border/80 bg-card"
+            onClick={addFont}
+            disabled={!draftFont || brandKit.fonts.includes(draftFont)}
+          >
+            <Plus size={14} />
+            Add to brand kit
+          </Button>
         </div>
       </ControlGroup>
     </div>

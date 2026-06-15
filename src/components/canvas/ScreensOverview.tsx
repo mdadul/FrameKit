@@ -16,6 +16,9 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 import { renderScreenToDataUrl } from '@/lib/export/renderer'
+import { screenContentSignature } from '@/lib/canvas/perf/content-signature'
+import { LruMap } from '@/lib/canvas/perf/lru-map'
+import { enqueueThumbnailTask } from '@/lib/canvas/perf/thumbnail-queue'
 import { cn } from '@/lib/utils'
 import type { Screen } from '@/lib/types'
 
@@ -27,30 +30,7 @@ interface ScreensOverviewProps {
   onReorder: (screenIds: string[]) => void
 }
 
-// Persisted across mounts so toggling view modes doesn't re-render every thumbnail.
-const thumbnailCache = new Map<string, string>()
-
-function collectAssetIds(screen: Screen): string[] {
-  const ids: string[] = []
-  if (screen.background.imageAssetId) ids.push(screen.background.imageAssetId)
-  for (const element of screen.elements) {
-    if (element.type === 'image' && element.assetId) ids.push(element.assetId)
-    if (element.type === 'device' && element.screenshotAssetId) {
-      ids.push(element.screenshotAssetId)
-    }
-  }
-  return ids
-}
-
-function getContentSignature(
-  screen: Screen,
-  assetResolver: (assetId?: string) => string | undefined,
-): string {
-  const assetSignature = collectAssetIds(screen)
-    .map((id) => `${id}=${assetResolver(id) ?? ''}`)
-    .join('|')
-  return `${JSON.stringify(screen)}::${assetSignature}`
-}
+const thumbnailCache = new LruMap<string, string>(30)
 
 function ScreenThumbnail({
   screen,
@@ -68,30 +48,30 @@ function ScreenThumbnail({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: screen.id })
   const signature = useMemo(
-    () => getContentSignature(screen, assetResolver),
+    () => screenContentSignature(screen, assetResolver),
     [screen, assetResolver],
   )
-  const cacheKey = `${screen.id}::${signature}`
-  // Holds an async-generated thumbnail tagged with the key it was produced for.
-  const [generated, setGenerated] = useState<{ key: string; url: string } | null>(
-    null,
-  )
+  const cacheKey = signature
+  const [generated, setGenerated] = useState<{ key: string; url: string } | null>(null)
 
   const cached = thumbnailCache.get(cacheKey)
-  const dataUrl =
-    cached ?? (generated?.key === cacheKey ? generated.url : undefined)
+  const dataUrl = cached ?? (generated?.key === cacheKey ? generated.url : undefined)
 
   useEffect(() => {
     if (thumbnailCache.has(cacheKey)) return
 
     let cancelled = false
-    void renderScreenToDataUrl({ screen, assetResolver, scale: 1, format: 'png' })
-      .then((url) => {
-        if (cancelled) return
-        thumbnailCache.set(cacheKey, url)
-        setGenerated({ key: cacheKey, url })
+    enqueueThumbnailTask(async () => {
+      const url = await renderScreenToDataUrl({
+        screen,
+        assetResolver,
+        scale: 1,
+        format: 'png',
       })
-      .catch(() => {})
+      if (cancelled) return
+      thumbnailCache.set(cacheKey, url)
+      setGenerated({ key: cacheKey, url })
+    })
 
     return () => {
       cancelled = true
@@ -109,8 +89,8 @@ function ScreenThumbnail({
       style={style}
       className={cn(
         'group relative flex flex-col gap-2 rounded-lg border bg-card p-2 transition',
-        isActive ? 'border-primary ring-2 ring-primary' : 'border-border',
-        isDragging ? 'z-10 opacity-80 shadow-lg' : 'hover:border-primary/60',
+        isActive ? 'border-[#18A0FB] ring-2 ring-[#18A0FB]/30' : 'border-border',
+        isDragging ? 'z-10 opacity-80 shadow-lg' : 'hover:border-[#18A0FB]/50',
       )}
     >
       <div className="flex items-center justify-between gap-2">

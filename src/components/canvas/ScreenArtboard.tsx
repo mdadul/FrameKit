@@ -1,13 +1,14 @@
-import { useMemo } from 'react'
-import { Image as KonvaImage, Group, Line, Rect } from 'react-konva'
+import { memo, useMemo } from 'react'
+import { Image as KonvaImage, Group, Rect, Text } from 'react-konva'
 import useImage from 'use-image'
 import type Konva from 'konva'
 import { ElementNode } from '@/components/canvas/ElementNode'
 import { ElementGroupNode } from '@/components/canvas/ElementGroupNode'
-import type { SnapLine } from '@/lib/canvas/helpers'
-import { buildBackgroundCanvas } from '@/lib/canvas/backgrounds'
+import { selectionStrokeWidth } from '@/lib/canvas/selection-style'
+import { SELECTION_BLUE, SELECTION_BLUE_SOFT } from '@/lib/canvas/selection-style'
+import { getCachedBackgroundCanvas } from '@/lib/canvas/perf/background-cache'
+import { buildGridCanvas } from '@/lib/canvas/perf/grid-canvas'
 import type { BackgroundConfig, Element } from '@/lib/types'
-import { BRAND_PRIMARY } from '@/lib/constants'
 
 export function BackgroundRect({
   background,
@@ -26,32 +27,40 @@ export function BackgroundRect({
 
   const canvas = useMemo(
     () =>
-      buildBackgroundCanvas(
+      getCachedBackgroundCanvas(
         background,
         width,
         height,
         background.type === 'image' ? bgImage : undefined,
-        1,
+        imageUrl,
       ),
-    [background, width, height, bgImage],
+    [background, width, height, bgImage, imageUrl],
   )
 
-  return <KonvaImage image={canvas} width={width} height={height} listening={false} />
+  return (
+    <KonvaImage
+      image={canvas}
+      width={width}
+      height={height}
+      listening={false}
+      perfectDrawEnabled={false}
+    />
+  )
 }
 
 interface ScreenArtboardProps {
   screenId: string
+  screenName: string
   width: number
   height: number
   background: BackgroundConfig
   elements: Element[]
   assetResolver: (assetId?: string) => string | undefined
   isActive: boolean
+  isHovered: boolean
   workspaceZoom: number
   selectedElementIds: string[]
   editingTextId: string | null
-  guides: SnapLine[]
-  marquee: { x: number; y: number; width: number; height: number } | null
   showGrid: boolean
   gridSize: number
   onSelect: (id: string, additive: boolean) => void
@@ -61,19 +70,19 @@ interface ScreenArtboardProps {
   onArtboardBackgroundClick: (additive: boolean) => void
 }
 
-export function ScreenArtboard({
+function ScreenArtboardInner({
   screenId,
+  screenName,
   width,
   height,
   background,
   elements,
   assetResolver,
   isActive,
+  isHovered,
   workspaceZoom,
   selectedElementIds,
   editingTextId,
-  guides,
-  marquee,
   showGrid,
   gridSize,
   onSelect,
@@ -82,8 +91,26 @@ export function ScreenArtboard({
   onStartTextEdit,
   onArtboardBackgroundClick,
 }: ScreenArtboardProps) {
-  const sortedElements = [...elements].sort((a, b) => a.zIndex - b.zIndex)
-  const strokeScale = 1 / workspaceZoom
+  const sortedElements = useMemo(
+    () => [...elements].sort((a, b) => a.zIndex - b.zIndex),
+    [elements],
+  )
+  const strokeScale = selectionStrokeWidth(workspaceZoom, 1)
+  const activeStroke = selectionStrokeWidth(workspaceZoom, 1)
+  const labelFontSize = 11 / workspaceZoom
+  const labelPadX = 8 / workspaceZoom
+  const labelPadY = 4 / workspaceZoom
+  const labelHeight = labelFontSize + labelPadY * 2
+  const labelOffset = 6 / workspaceZoom
+  const labelWidth = Math.min(
+    width,
+    Math.max(72 / workspaceZoom, screenName.length * (labelFontSize * 0.58) + labelPadX * 2),
+  )
+
+  const gridCanvas = useMemo(
+    () => (showGrid ? buildGridCanvas(width, height, gridSize) : null),
+    [showGrid, width, height, gridSize],
+  )
 
   const { ungrouped, groups } = useMemo(() => {
     const groupMap = new Map<string, Element[]>()
@@ -101,17 +128,18 @@ export function ScreenArtboard({
   }, [sortedElements])
 
   return (
-    <Group name={`screen-${screenId}`}>
+    <Group name={`screen-artboard-${screenId}`}>
       <Rect
         x={0}
         y={0}
         width={width}
         height={height}
         fill="#ffffff"
-        shadowColor="rgba(15,23,42,0.35)"
-        shadowBlur={40}
-        shadowOffsetY={12}
+        shadowColor={isActive ? 'rgba(15,23,42,0.35)' : undefined}
+        shadowBlur={isActive ? 40 : 0}
+        shadowOffsetY={isActive ? 12 : 0}
         listening={false}
+        perfectDrawEnabled={false}
       />
       <BackgroundRect
         background={background}
@@ -119,26 +147,15 @@ export function ScreenArtboard({
         height={height}
         assetResolver={assetResolver}
       />
-      {showGrid &&
-        Array.from({ length: Math.ceil(width / gridSize) }).map((_, index) => (
-          <Line
-            key={`v-${index}`}
-            points={[index * gridSize, 0, index * gridSize, height]}
-            stroke="rgba(148,163,184,0.35)"
-            strokeWidth={1}
-            listening={false}
-          />
-        ))}
-      {showGrid &&
-        Array.from({ length: Math.ceil(height / gridSize) }).map((_, index) => (
-          <Line
-            key={`h-${index}`}
-            points={[0, index * gridSize, width, index * gridSize]}
-            stroke="rgba(148,163,184,0.35)"
-            strokeWidth={1}
-            listening={false}
-          />
-        ))}
+      {gridCanvas && (
+        <KonvaImage
+          image={gridCanvas}
+          width={width}
+          height={height}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      )}
 
       <Rect
         x={0}
@@ -158,6 +175,7 @@ export function ScreenArtboard({
           element={element}
           selected={isActive && selectedElementIds.includes(element.id)}
           assetResolver={assetResolver}
+          draggable={isActive && !element.locked}
           onSelect={onSelect}
           onChange={onChange}
           onDragMove={onDragMove}
@@ -171,6 +189,7 @@ export function ScreenArtboard({
           key={groupId}
           groupId={groupId}
           elements={groupElements}
+          isActive={isActive}
           selectedElementIds={selectedElementIds}
           assetResolver={assetResolver}
           onSelect={onSelect}
@@ -182,51 +201,73 @@ export function ScreenArtboard({
       ))}
 
       {isActive && (
+        <Group listening={false}>
+          <Rect
+            x={0}
+            y={-(labelHeight + labelOffset)}
+            width={labelWidth}
+            height={labelHeight}
+            fill={SELECTION_BLUE}
+            cornerRadius={3 / workspaceZoom}
+            perfectDrawEnabled={false}
+          />
+          <Text
+            x={labelPadX}
+            y={-(labelHeight + labelOffset) + labelPadY}
+            width={labelWidth - labelPadX * 2}
+            text={screenName}
+            fontSize={labelFontSize}
+            fontFamily="Inter, system-ui, sans-serif"
+            fontStyle="500"
+            fill="#ffffff"
+            ellipsis
+            listening={false}
+          />
+        </Group>
+      )}
+
+      {isActive && (
         <Rect
-          x={-2 * strokeScale}
-          y={-2 * strokeScale}
-          width={width + 4 * strokeScale}
-          height={height + 4 * strokeScale}
-          stroke={BRAND_PRIMARY}
-          strokeWidth={2 * strokeScale}
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+          stroke={SELECTION_BLUE}
+          strokeWidth={activeStroke}
           listening={false}
+          perfectDrawEnabled={false}
         />
       )}
 
-      {isActive &&
-        guides.map((guide, index) =>
-          guide.orientation === 'vertical' ? (
-            <Line
-              key={`g-v-${index}`}
-              points={[guide.position, 0, guide.position, height]}
-              stroke="#ec4899"
-              strokeWidth={strokeScale}
-              listening={false}
-            />
-          ) : (
-            <Line
-              key={`g-h-${index}`}
-              points={[0, guide.position, width, guide.position]}
-              stroke="#ec4899"
-              strokeWidth={strokeScale}
-              listening={false}
-            />
-          ),
-        )}
-
-      {isActive && marquee && (marquee.width > 0 || marquee.height > 0) && (
+      {!isActive && isHovered && (
         <Rect
-          x={marquee.x}
-          y={marquee.y}
-          width={marquee.width}
-          height={marquee.height}
-          fill="rgba(59,130,246,0.12)"
-          stroke="#3b82f6"
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+          stroke={SELECTION_BLUE_SOFT}
           strokeWidth={strokeScale}
-          dash={[6 * strokeScale, 4 * strokeScale]}
           listening={false}
+          perfectDrawEnabled={false}
         />
       )}
     </Group>
   )
 }
+
+function propsEqual(prev: ScreenArtboardProps, next: ScreenArtboardProps): boolean {
+  if (prev.screenId !== next.screenId) return false
+  if (prev.isActive !== next.isActive) return false
+  if (prev.isHovered !== next.isHovered) return false
+  if (prev.workspaceZoom !== next.workspaceZoom) return false
+  if (prev.showGrid !== next.showGrid || prev.gridSize !== next.gridSize) return false
+  if (prev.width !== next.width || prev.height !== next.height) return false
+  if (prev.background !== next.background) return false
+  if (prev.elements !== next.elements) return false
+  if (prev.editingTextId !== next.editingTextId) return false
+  if (prev.screenName !== next.screenName) return false
+  if (prev.isActive && prev.selectedElementIds !== next.selectedElementIds) return false
+  return true
+}
+
+export const ScreenArtboard = memo(ScreenArtboardInner, propsEqual)

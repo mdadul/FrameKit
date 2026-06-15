@@ -2,6 +2,13 @@ import type { StorePreset } from '@/lib/types'
 
 export const STORE_PRESETS: StorePreset[] = [
   {
+    id: 'apple-6-7',
+    name: 'Apple 6.7"',
+    platform: 'apple',
+    width: 1290,
+    height: 2796,
+  },
+  {
     id: 'apple-6-9',
     name: 'Apple 6.9"',
     platform: 'apple',
@@ -42,6 +49,13 @@ export const STORE_PRESETS: StorePreset[] = [
     platform: 'android',
     width: 1600,
     height: 2560,
+  },
+  {
+    id: 'android-feature-graphic',
+    name: 'Play Store Feature Graphic',
+    platform: 'android',
+    width: 1024,
+    height: 500,
   },
 ]
 

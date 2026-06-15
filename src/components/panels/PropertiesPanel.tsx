@@ -8,7 +8,6 @@ import {
   Layers,
   Move,
   Palette,
-  SlidersHorizontal,
   Smartphone,
   Sparkles,
   Sun,
@@ -30,6 +29,7 @@ import { MixedNumberField, NumberField } from '@/components/ui/NumberField'
 import { SliderField } from '@/components/ui/SliderField'
 import { ColorPickerField } from '@/components/ui/ColorPickerField'
 import { Button } from '@/components/ui/Button'
+import { cn } from '@/lib/utils'
 import type {
   DeviceElement,
   Element,
@@ -63,7 +63,7 @@ function usePropertiesContext() {
   const selectedElementIds = useEditorStore((state) => state.selectedElementIds)
 
   if (!screen) {
-    return { subtitle: '', editing: false }
+    return { subtitle: '', contextLabel: null as string | null }
   }
 
   const selectedElements = screen.elements.filter((element) =>
@@ -71,41 +71,46 @@ function usePropertiesContext() {
   )
 
   if (selectedElements.length === 0) {
-    return { subtitle: screen.name, editing: true }
+    return { subtitle: screen.name, contextLabel: 'Screen' }
   }
 
   if (selectedElements.length > 1) {
-    return { subtitle: `${selectedElements.length} elements`, editing: false }
+    return {
+      subtitle: `${selectedElements.length} layers`,
+      contextLabel: 'Selection',
+    }
   }
 
-  return { subtitle: ELEMENT_LABELS[selectedElements[0].type].label, editing: false }
+  const meta = ELEMENT_LABELS[selectedElements[0].type]
+  return {
+    subtitle: selectedElements[0].name || meta.label,
+    contextLabel: meta.label,
+  }
 }
 
 export function PropertiesPanelHeader({ onClose }: { onClose: () => void }) {
-  const { subtitle, editing } = usePropertiesContext()
+  const { subtitle, contextLabel } = usePropertiesContext()
 
   return (
-    <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-3 py-1.5">
-      <div className="flex min-w-0 items-center gap-2">
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted/50 text-muted-foreground">
-          <SlidersHorizontal size={14} strokeWidth={2} />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wide leading-tight text-foreground">
-            Properties
-          </p>
-          {subtitle ? (
-            <p className="truncate text-[10px] leading-tight text-muted-foreground">
-              {editing ? `Editing · ${subtitle}` : subtitle}
-            </p>
-          ) : null}
-        </div>
+    <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-3 py-2">
+      <div className="min-w-0">
+        <p className="text-[13px] font-semibold leading-tight text-foreground">Design</p>
+        {subtitle ? (
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+            {contextLabel ? (
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {contextLabel}
+              </span>
+            ) : null}
+            <p className="truncate text-[11px] leading-tight text-muted-foreground">{subtitle}</p>
+          </div>
+        ) : null}
       </div>
       <button
         type="button"
         aria-label="Collapse properties"
         title="Collapse properties"
-        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={onClose}
       >
         <X size={14} />
@@ -137,10 +142,10 @@ function SegmentedControl<T extends string>({
 }) {
   return (
     <div className="space-y-1.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
       <div
-        className="grid gap-1 rounded-md bg-muted p-1"
-        style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+        className="inline-flex w-full gap-0.5 rounded-md border border-border/60 bg-muted/40 p-0.5"
+        style={{ display: 'grid', gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
       >
         {options.map((option) => {
           const active = option.value === value
@@ -149,11 +154,12 @@ function SegmentedControl<T extends string>({
               key={option.value}
               type="button"
               onClick={() => onChange(option.value)}
-              className={`rounded px-1 py-1.5 text-xs font-medium capitalize transition ${
+              className={cn(
+                'rounded-[5px] py-1.5 text-[11px] font-medium capitalize transition',
                 active
                   ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
             >
               {option.label}
             </button>
@@ -253,16 +259,14 @@ export function PropertiesPanel() {
 
   if (!element) {
     return (
-      <div className="space-y-0">
+      <div className="flex min-h-full flex-col">
         <PanelSection title="Background" icon={Palette}>
           <BackgroundControls background={screen.background} />
         </PanelSection>
-        <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <Move size={18} />
-          </div>
-          <p className="text-sm font-medium text-foreground">Nothing selected</p>
-          <Hint>Select an element on the canvas to edit its properties here.</Hint>
+        <div className="mt-auto border-t border-border/50 px-3 py-3">
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Select a layer on the canvas to edit position, typography, and effects.
+          </p>
         </div>
       </div>
     )
@@ -614,9 +618,14 @@ export function PropertiesPanel() {
               <select
                 className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm"
                 value={(element as DeviceElement).deviceId}
-                onChange={(event) =>
-                  updateElement(element.id, { deviceId: event.target.value })
-                }
+                onChange={(event) => {
+                  const deviceId = event.target.value
+                  const device = getDevice(deviceId)
+                  updateElement(element.id, {
+                    deviceId,
+                    colorVariant: device?.colorVariants[0]?.id,
+                  })
+                }}
               >
                 {DEVICES.map((device) => (
                   <option key={device.id} value={device.id}>

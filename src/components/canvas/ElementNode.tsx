@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import Konva from 'konva'
 import { Group, Image as KonvaImage, Line, Rect, RegularPolygon, Text, Circle } from 'react-konva'
 import useImage from 'use-image'
+import { clearKonvaImageCache } from '@/lib/canvas/konva-lifecycle'
 import { getElementShadowProps, getGradientProps } from '@/lib/canvas/helpers'
-import { renderDeviceComposite } from '@/lib/canvas/device-render'
+import { getCachedDeviceComposite } from '@/lib/canvas/perf/device-composite-cache'
 import type { DeviceElement, Element, ImageElement, ShapeElement, TextElement } from '@/lib/types'
 
 interface NodeCallbacks {
@@ -18,15 +19,18 @@ interface ElementNodeProps extends NodeCallbacks {
   selected: boolean
   assetResolver: (assetId?: string) => string | undefined
   editingTextId?: string | null
+  draggable?: boolean
 }
 
 function ImageNode({
   element,
   assetResolver,
+  draggable = !element.locked,
   ...props
 }: {
   element: ImageElement
   assetResolver: (assetId?: string) => string | undefined
+  draggable?: boolean
 } & NodeCallbacks) {
   const src = element.src ?? assetResolver(element.assetId)
   const [image] = useImage(src ?? '', 'anonymous')
@@ -38,8 +42,6 @@ function ImageNode({
   const blur = element.blur ?? 0
   const hasFilters = Boolean(brightness || contrast || saturation || blur)
 
-  // Konva filters require the node to be cached. Re-cache whenever the source
-  // image, the filter values, or the node dimensions change.
   useEffect(() => {
     const node = imageRef.current
     if (!node) return
@@ -61,6 +63,10 @@ function ImageNode({
     node.saturation(saturation)
     node.blurRadius(blur)
     node.getLayer()?.batchDraw()
+
+    return () => {
+      clearKonvaImageCache(imageRef.current)
+    }
   }, [image, hasFilters, brightness, contrast, saturation, blur, element.width, element.height])
 
   return (
@@ -73,7 +79,7 @@ function ImageNode({
       rotation={element.rotation}
       opacity={element.opacity}
       visible={element.visible}
-      draggable={!element.locked}
+      draggable={draggable}
       onClick={(event) => props.onSelect(element.id, event.evt.shiftKey)}
       onTap={(event) => props.onSelect(element.id, event.evt.shiftKey)}
       onDragMove={(event) => props.onDragMove?.(element.id, event.target)}
@@ -107,6 +113,7 @@ function ImageNode({
         scaleY={element.flipY ? -1 : 1}
         x={element.flipX ? element.width : 0}
         y={element.flipY ? element.height : 0}
+        perfectDrawEnabled={false}
       />
       {element.borderWidth > 0 && (
         <Rect
@@ -115,6 +122,8 @@ function ImageNode({
           stroke={element.borderColor}
           strokeWidth={element.borderWidth}
           cornerRadius={element.cornerRadius}
+          listening={false}
+          perfectDrawEnabled={false}
         />
       )}
     </Group>
@@ -124,18 +133,26 @@ function ImageNode({
 function DeviceNode({
   element,
   assetResolver,
+  draggable = !element.locked,
   ...props
 }: {
   element: DeviceElement
   assetResolver: (assetId?: string) => string | undefined
+  draggable?: boolean
 } & NodeCallbacks) {
   const screenshotSrc = assetResolver(element.screenshotAssetId)
   const [screenshot] = useImage(screenshotSrc ?? '', 'anonymous')
+  const screenshotKey = element.screenshotAssetId ?? screenshotSrc ?? ''
+  const deviceImageRef = useRef<Konva.Image>(null)
 
   const composite = useMemo(
-    () => renderDeviceComposite(element, screenshot, 2),
-    [element, screenshot],
+    () => getCachedDeviceComposite(element, screenshot, screenshotKey, 2),
+    [element, screenshot, screenshotKey],
   )
+
+  useEffect(() => {
+    deviceImageRef.current?.getLayer()?.batchDraw()
+  }, [composite, screenshot])
 
   if (!composite) return null
 
@@ -149,7 +166,7 @@ function DeviceNode({
       rotation={element.rotation}
       opacity={element.opacity}
       visible={element.visible}
-      draggable={!element.locked}
+      draggable={draggable}
       onClick={(event) => props.onSelect(element.id, event.evt.shiftKey)}
       onTap={(event) => props.onSelect(element.id, event.evt.shiftKey)}
       onDragMove={(event) => props.onDragMove?.(element.id, event.target)}
@@ -176,17 +193,19 @@ function DeviceNode({
       shadowOpacity={element.shadowIntensity}
     >
       <KonvaImage
+        ref={deviceImageRef}
         image={composite.canvas}
         x={composite.offsetX}
         y={composite.offsetY}
         width={composite.width}
         height={composite.height}
+        perfectDrawEnabled={false}
       />
     </Group>
   )
 }
 
-export function ElementNode({
+function ElementNodeInner({
   element,
   assetResolver,
   onSelect,
@@ -194,12 +213,16 @@ export function ElementNode({
   onDragMove,
   onStartTextEdit,
   editingTextId,
+  draggable,
 }: ElementNodeProps) {
+  const isDraggable = draggable ?? !element.locked
+
   if (element.type === 'image') {
     return (
       <ImageNode
         element={element}
         assetResolver={assetResolver}
+        draggable={isDraggable}
         onSelect={onSelect}
         onChange={onChange}
         onDragMove={onDragMove}
@@ -212,12 +235,20 @@ export function ElementNode({
       <DeviceNode
         element={element}
         assetResolver={assetResolver}
+        draggable={isDraggable}
         onSelect={onSelect}
         onChange={onChange}
         onDragMove={onDragMove}
       />
     )
   }
+
+  const hasStroke =
+    element.type === 'text'
+      ? Boolean((element as TextElement).strokeWidth)
+      : element.type === 'shape'
+        ? Boolean((element as ShapeElement).strokeWidth)
+        : false
 
   const commonProps = {
     id: element.id,
@@ -228,11 +259,13 @@ export function ElementNode({
     rotation: element.rotation,
     opacity: element.opacity,
     visible: element.visible,
-    draggable: !element.locked,
+    draggable: isDraggable,
+    listening: !element.locked,
+    perfectDrawEnabled: hasStroke ? false : undefined,
     onClick: (event: { evt: { shiftKey: boolean } }) => onSelect(element.id, event.evt.shiftKey),
     onTap: (event: { evt: { shiftKey: boolean } }) => onSelect(element.id, event.evt.shiftKey),
     onDragMove: (event: { target: Konva.Node }) => onDragMove?.(element.id, event.target),
-    onDragEnd: (event: { target: { x: () => number; y: () => number } }) => {
+    onDragEnd: (event: { target: Konva.Node }) => {
       onChange(element.id, {
         x: event.target.x(),
         y: event.target.y(),
@@ -344,3 +377,14 @@ export function ElementNode({
 
   return null
 }
+
+function elementPropsEqual(prev: ElementNodeProps, next: ElementNodeProps): boolean {
+  return (
+    prev.element === next.element &&
+    prev.selected === next.selected &&
+    prev.editingTextId === next.editingTextId &&
+    prev.draggable === next.draggable
+  )
+}
+
+export const ElementNode = memo(ElementNodeInner, elementPropsEqual)

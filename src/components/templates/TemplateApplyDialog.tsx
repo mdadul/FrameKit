@@ -1,16 +1,41 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CATEGORY_LABELS, LAYOUT_LABELS } from '@/lib/templates'
 import { renderTemplatePreview } from '@/lib/templates/preview'
+import { useProjectStore } from '@/stores/project-store'
+import { useEditorStore } from '@/stores/editor-store'
 import { Button } from '@/components/ui/Button'
-import type { TemplateDefinition } from '@/lib/types'
+import { cn } from '@/lib/utils'
+import type { TemplateApplyMode, TemplateDefinition } from '@/lib/types'
 
 interface TemplateApplyDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   template: TemplateDefinition | null
-  onApply: (scope: 'current' | 'all') => void
+  onApply: (scope: 'current' | 'all', mode: TemplateApplyMode) => void
 }
+
+const MODE_OPTIONS: Array<{
+  id: TemplateApplyMode
+  title: string
+  description: string
+}> = [
+  {
+    id: 'replace',
+    title: 'Replace all',
+    description: 'Replace background and all elements with the template layout.',
+  },
+  {
+    id: 'background',
+    title: 'Background only',
+    description: 'Keep your screenshots and copy — update the background style only.',
+  },
+  {
+    id: 'add-elements',
+    title: 'Add elements',
+    description: 'Layer template headlines and accents on top of your existing design.',
+  },
+]
 
 export function TemplateApplyDialog({
   open,
@@ -19,6 +44,26 @@ export function TemplateApplyDialog({
   onApply,
 }: TemplateApplyDialogProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [mode, setMode] = useState<TemplateApplyMode>('replace')
+  const project = useProjectStore((state) => state.project)
+  const activeScreenId = useEditorStore((state) => state.activeScreenId)
+
+  const activeScreen = useMemo(() => {
+    if (!project) return null
+    const screenId = activeScreenId ?? project.screens[0]?.id
+    return project.screens.find((screen) => screen.id === screenId) ?? null
+  }, [project, activeScreenId])
+
+  const hasExistingContent = useMemo(() => {
+    if (!activeScreen) return false
+    const nonDeviceElements = activeScreen.elements.filter((element) => element.type !== 'device')
+    return nonDeviceElements.length > 0
+  }, [activeScreen])
+
+  useEffect(() => {
+    if (!open) return
+    setMode(hasExistingContent ? 'background' : 'replace')
+  }, [open, hasExistingContent, template?.id])
 
   useEffect(() => {
     if (!open || !template) {
@@ -50,7 +95,7 @@ export function TemplateApplyDialog({
           <div className="border-b border-border px-5 py-4">
             <Dialog.Title className="text-lg font-semibold">{template.name}</Dialog.Title>
             <Dialog.Description className="mt-1 text-sm text-muted-foreground">
-              Replaces elements on the target screen(s) with this App Store-ready layout.
+              Choose how to apply this layout to your screen{hasExistingContent ? ' with existing content' : ''}.
             </Dialog.Description>
           </div>
 
@@ -65,9 +110,7 @@ export function TemplateApplyDialog({
                       className="h-full w-full object-cover object-top"
                     />
                   ) : (
-                    <span className="animate-pulse text-xs text-muted-foreground">
-                      Rendering…
-                    </span>
+                    <span className="animate-pulse text-xs text-muted-foreground">Rendering…</span>
                   )}
                 </div>
               </div>
@@ -77,29 +120,38 @@ export function TemplateApplyDialog({
               <dl className="space-y-3 text-sm">
                 <MetaRow label="Category" value={CATEGORY_LABELS[template.category]} />
                 <MetaRow label="Layout" value={LAYOUT_LABELS[template.layout]} />
-                {template.tags && template.tags.length > 0 && (
-                  <div>
-                    <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                      Style
-                    </dt>
-                    <dd className="mt-1.5 flex flex-wrap gap-1.5">
-                      {template.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs capitalize"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </dd>
-                  </div>
-                )}
               </dl>
 
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Includes headline, subtitle, device frame, and App Store-style accents. Customize
-                copy and colors after applying.
-              </p>
+              <div className="space-y-2">
+                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Apply mode
+                </p>
+                {MODE_OPTIONS.map((option) => (
+                  <label
+                    key={option.id}
+                    className={cn(
+                      'flex cursor-pointer gap-3 rounded-lg border p-3 transition',
+                      mode === option.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/40',
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="template-apply-mode"
+                      checked={mode === option.id}
+                      onChange={() => setMode(option.id)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="text-sm font-medium text-foreground">{option.title}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        {option.description}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -110,7 +162,7 @@ export function TemplateApplyDialog({
             <Button
               variant="secondary"
               onClick={() => {
-                onApply('current')
+                onApply('current', mode)
                 onOpenChange(false)
               }}
             >
@@ -118,7 +170,7 @@ export function TemplateApplyDialog({
             </Button>
             <Button
               onClick={() => {
-                onApply('all')
+                onApply('all', mode)
                 onOpenChange(false)
               }}
             >

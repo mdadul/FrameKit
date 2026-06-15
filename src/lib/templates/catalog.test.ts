@@ -11,8 +11,8 @@ function elementSignature(elements: TemplateElement[]): string {
 }
 
 describe('template catalog', () => {
-  it('has exactly 12 curated templates', () => {
-    expect(TEMPLATES).toHaveLength(12)
+  it('has exactly 13 curated templates', () => {
+    expect(TEMPLATES).toHaveLength(13)
   })
 
   it('has unique template ids', () => {
@@ -38,8 +38,9 @@ describe('template catalog', () => {
     }
   })
 
-  it('each template has a device and headline text', () => {
+  it('each phone template has a device and headline text', () => {
     for (const template of TEMPLATES) {
+      if (template.layout === 'featureGraphic') continue
       const devices = template.elements.filter((e) => e.type === 'device')
       const headlines = template.elements.filter(
         (e) => e.type === 'text' && e.name === 'Title',

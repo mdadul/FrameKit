@@ -19,6 +19,8 @@ export type PatternKind =
 export type ImageFit = 'cover' | 'contain' | 'fill'
 export type ThemeMode = 'light' | 'dark' | 'system'
 export type ExportFormat = 'png' | 'jpeg'
+export type ResizeStrategy = 'fit' | 'fill' | 'crop'
+export type TemplateApplyMode = 'replace' | 'background' | 'add-elements'
 
 export interface ShadowConfig {
   offsetX: number
@@ -203,6 +205,8 @@ export interface WorkspacePreferences {
   defaultZoom: number
   nudgeStep: number
   canvasCheckerboard: boolean
+  /** When true, Konva uses device pixel ratio for sharp canvas rendering on Retina displays. */
+  highDpiCanvas: boolean
 }
 
 export interface ExportPreferences {
@@ -212,6 +216,7 @@ export interface ExportPreferences {
   transparentBackground: boolean
   fileNamePattern: string
   lastUsedPresets: string[]
+  resizeStrategy: ResizeStrategy
 }
 
 export interface UserPreferences {

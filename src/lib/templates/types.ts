@@ -13,6 +13,7 @@ export type TemplateLayoutId =
   | 'storeBottomHeadline'
   | 'storeBoldBrand'
   | 'storeAngledDevice'
+  | 'featureGraphic'
 
 export const LAYOUT_LABELS: Record<TemplateLayoutId, string> = {
   classicHero: 'Classic Hero',
@@ -27,6 +28,7 @@ export const LAYOUT_LABELS: Record<TemplateLayoutId, string> = {
   storeBottomHeadline: 'App Store · Feature Compare',
   storeBoldBrand: 'App Store · Bold Brand',
   storeAngledDevice: 'App Store · Angled Device',
+  featureGraphic: 'Play Store · Feature Graphic',
 }
 
 export type TemplateCategory =

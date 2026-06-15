@@ -151,7 +151,6 @@ export function AssetsPanel() {
   const addImageFromAsset = useProjectStore((state) => state.addImageFromAsset)
   const registerAssetUrl = useProjectStore((state) => state.registerAssetUrl)
   const updateElement = useProjectStore((state) => state.updateElement)
-  const selectedElementIds = useEditorStore((state) => state.selectedElementIds)
   const [assets, setAssets] = useState<AssetRecord[]>([])
   const [query, setQuery] = useState('')
   const [uploadMode, setUploadMode] = useState<'library' | 'canvas'>('library')
@@ -226,9 +225,12 @@ export function AssetsPanel() {
 
   const onAssignToDevice = (assetId: string) => {
     const screen = useProjectStore.getState().getActiveScreen()
-    const element = screen?.elements.find((item) => selectedElementIds.includes(item.id))
-    if (element?.type === 'device') {
-      updateElement(element.id, { screenshotAssetId: assetId })
+    const selection = useEditorStore.getState().selectedElementIds
+    const device = screen?.elements.find(
+      (item) => selection.includes(item.id) && item.type === 'device',
+    )
+    if (device) {
+      updateElement(device.id, { screenshotAssetId: assetId })
     }
   }
 

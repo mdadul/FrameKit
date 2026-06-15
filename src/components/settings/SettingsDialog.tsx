@@ -1,9 +1,10 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useSettingsStore } from '@/stores/settings-store'
+import { resetOnboardingTour } from '@/components/onboarding/OnboardingTour'
 import { SliderField } from '@/components/ui/SliderField'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
-import type { ThemeMode } from '@/lib/types'
+import type { ResizeStrategy, ThemeMode } from '@/lib/types'
 
 interface SettingsDialogProps {
   open: boolean
@@ -73,6 +74,16 @@ export function SettingsDialog({ open, onOpenChange, onShowShortcuts }: Settings
                 />
                 Show rulers
               </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={preferences.workspace.highDpiCanvas}
+                  onChange={(event) =>
+                    updateWorkspace({ highDpiCanvas: event.target.checked })
+                  }
+                />
+                Sharp canvas on Retina (uses more GPU memory)
+              </label>
               <SliderField
                 label="Default zoom"
                 value={Math.round(preferences.workspace.defaultZoom * 100)}
@@ -127,6 +138,35 @@ export function SettingsDialog({ open, onOpenChange, onShowShortcuts }: Settings
                 />
                 Transparent background
               </label>
+              <label className="text-sm">
+                Resize strategy
+                <select
+                  className="mt-1 h-9 w-full rounded-md border border-input bg-card px-3 text-sm"
+                  value={preferences.export.resizeStrategy ?? 'fit'}
+                  onChange={(event) =>
+                    updateExport({ resizeStrategy: event.target.value as ResizeStrategy })
+                  }
+                >
+                  <option value="fit">Fit (letterbox)</option>
+                  <option value="fill">Fill (center crop)</option>
+                  <option value="crop">Crop (top-left)</option>
+                </select>
+              </label>
+            </section>
+
+            <section className="space-y-3">
+              <h3 className="text-sm font-medium">Help</h3>
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => {
+                  resetOnboardingTour()
+                  onOpenChange(false)
+                  window.location.reload()
+                }}
+              >
+                Show getting started checklist again
+              </Button>
             </section>
 
             <div className="flex justify-between">

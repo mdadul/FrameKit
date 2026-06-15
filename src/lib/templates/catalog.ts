@@ -2,6 +2,7 @@ import { DEFAULT_DEVICE_ID } from '@/lib/constants'
 import { buildBoldCentered } from '@/lib/templates/layouts/bold-centered'
 import { buildClassicHero } from '@/lib/templates/layouts/classic-hero'
 import { buildDarkGlow } from '@/lib/templates/layouts/dark-glow'
+import { buildFeatureGraphic } from '@/lib/templates/layouts/feature-graphic'
 import { buildFeatureCards } from '@/lib/templates/layouts/feature-cards'
 import { buildMeshModern } from '@/lib/templates/layouts/mesh-modern'
 import { buildMinimalLight } from '@/lib/templates/layouts/minimal-light'
@@ -240,6 +241,22 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
       colorVariant: 'black',
     },
     buildClassicHero,
+  ),
+  makeTemplate(
+    'utilities-feature-graphic',
+    'Play Store Banner',
+    'utilities',
+    'featureGraphic',
+    ['modern', 'bold'],
+    {
+      title: 'Your App\nOn Every Device',
+      subtitle: 'Download today on Google Play',
+      accent: '#0d9488',
+      accentSecondary: '#115e59',
+      badge: 'Featured on Google Play',
+      headlineFont: 'Poppins',
+    },
+    buildFeatureGraphic,
   ),
 ]
 

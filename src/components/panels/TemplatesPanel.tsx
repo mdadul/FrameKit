@@ -12,7 +12,7 @@ import { useEditorStore } from '@/stores/editor-store'
 import { Input } from '@/components/ui/Input'
 import { TemplateApplyDialog } from '@/components/templates/TemplateApplyDialog'
 import { TemplateThumbnail } from '@/components/templates/TemplateThumbnail'
-import type { Element, TemplateDefinition } from '@/lib/types'
+import type { Element, TemplateApplyMode, TemplateDefinition } from '@/lib/types'
 
 type FilterTag = (typeof TEMPLATE_FILTER_TAGS)[number] | 'all'
 
@@ -50,7 +50,7 @@ export function TemplatesPanel() {
       .filter((group) => group.templates.length > 0)
   }, [filteredTemplates])
 
-  const handleApply = (scope: 'current' | 'all') => {
+  const handleApply = (scope: 'current' | 'all', mode: TemplateApplyMode) => {
     const template = pendingTemplate
     const screenId = activeScreenId ?? project?.screens[0]?.id
     if (!template || !screenId) return
@@ -65,9 +65,9 @@ export function TemplatesPanel() {
     const background = structuredClone(template.background)
 
     if (scope === 'all') {
-      applyTemplateToAllScreens(elements, background)
+      applyTemplateToAllScreens(elements, background, mode)
     } else {
-      applyTemplateToScreen(screenId, elements, background)
+      applyTemplateToScreen(screenId, elements, background, mode)
     }
   }
 

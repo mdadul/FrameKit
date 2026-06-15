@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { ChevronDown, Download, Upload } from 'lucide-react'
+import { ChevronDown, Download, HardDrive, Upload } from 'lucide-react'
 import * as Popover from '@radix-ui/react-popover'
 import { useProjectStore } from '@/stores/project-store'
 import { exportProjectFile, importProjectFile } from '@/lib/project-io'
@@ -18,7 +18,7 @@ export function ProjectMenu() {
     if (!project) return
     const blob = await exportProjectFile(project)
     downloadBlob(blob, `${project.name}.ssgproj`)
-    toast('Project exported', 'success')
+    toast('Project backed up', 'success')
   }
 
   const importProject = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,8 +52,17 @@ export function ProjectMenu() {
           <Popover.Content
             align="start"
             sideOffset={6}
-            className="z-50 w-44 rounded-lg border border-border bg-card p-1 shadow-lg"
+            className="z-50 w-52 rounded-lg border border-border bg-card p-1 shadow-lg"
           >
+            <div className="border-b border-border px-2.5 py-2">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                <HardDrive size={12} />
+                Back up your work
+              </p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                Projects stay in your browser. Export a .ssgproj file to save a copy.
+              </p>
+            </div>
             <Popover.Close asChild>
               <button
                 type="button"

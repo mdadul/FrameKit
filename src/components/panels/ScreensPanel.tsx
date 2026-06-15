@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Copy, GripVertical, Plus, Smartphone, Trash2 } from 'lucide-react'
+import { Copy, GripVertical, Plus, RefreshCw, Smartphone, Trash2 } from 'lucide-react'
 import { CopyToAndroidDialog } from '@/components/panels/CopyToAndroidDialog'
 import { MAX_SCREENS } from '@/lib/constants'
 import { DEFAULT_ANDROID_DEVICE_ID, screenHasIpadFrame } from '@/lib/assets/device-mapping'
@@ -22,6 +22,7 @@ import { getScreenPlatform, isAppleScreen } from '@/lib/platform-copy'
 import { confirm } from '@/stores/confirm-store'
 import { useProjectStore } from '@/stores/project-store'
 import { useEditorStore } from '@/stores/editor-store'
+import { toast } from '@/stores/toast-store'
 import { Button } from '@/components/ui/Button'
 import type { Screen } from '@/lib/types'
 
@@ -30,9 +31,13 @@ type CopyMode = 'all' | 'single'
 function SortableScreenItem({
   screen,
   onCopyToAndroid,
+  onSyncAndroid,
+  linkedAndroid,
 }: {
   screen: Screen
   onCopyToAndroid: (screenId: string) => void
+  onSyncAndroid: (screenId: string) => void
+  linkedAndroid: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: screen.id,
@@ -91,17 +96,34 @@ function SortableScreenItem({
         </p>
       </div>
       {isAppleScreen(screen) && (
-        <button
-          type="button"
-          aria-label="Copy to Android"
-          className="text-muted-foreground transition hover:text-foreground"
-          onClick={(event) => {
-            event.stopPropagation()
-            onCopyToAndroid(screen.id)
-          }}
-        >
-          <Smartphone size={14} />
-        </button>
+        <>
+          {linkedAndroid ? (
+            <button
+              type="button"
+              aria-label="Sync linked Android screen"
+              title="Sync from iOS"
+              className="text-muted-foreground transition hover:text-foreground"
+              onClick={(event) => {
+                event.stopPropagation()
+                onSyncAndroid(screen.id)
+              }}
+            >
+              <RefreshCw size={14} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              aria-label="Copy to Android"
+              className="text-muted-foreground transition hover:text-foreground"
+              onClick={(event) => {
+                event.stopPropagation()
+                onCopyToAndroid(screen.id)
+              }}
+            >
+              <Smartphone size={14} />
+            </button>
+          )}
+        </>
       )}
       <button type="button" aria-label="Duplicate screen" onClick={() => duplicateScreen(screen.id)}>
         <Copy size={14} />
@@ -122,10 +144,14 @@ function ScreenGroup({
   title,
   screens,
   onCopyToAndroid,
+  onSyncAndroid,
+  linkedAndroidBySource,
 }: {
   title: string
   screens: Screen[]
   onCopyToAndroid: (screenId: string) => void
+  onSyncAndroid: (screenId: string) => void
+  linkedAndroidBySource: Set<string>
 }) {
   if (screens.length === 0) return null
 
@@ -135,7 +161,13 @@ function ScreenGroup({
         {title}
       </p>
       {screens.map((screen) => (
-        <SortableScreenItem key={screen.id} screen={screen} onCopyToAndroid={onCopyToAndroid} />
+        <SortableScreenItem
+          key={screen.id}
+          screen={screen}
+          onCopyToAndroid={onCopyToAndroid}
+          onSyncAndroid={onSyncAndroid}
+          linkedAndroid={linkedAndroidBySource.has(screen.id)}
+        />
       ))}
     </div>
   )
@@ -146,6 +178,7 @@ export function ScreensPanel() {
   const addScreen = useProjectStore((state) => state.addScreen)
   const reorderScreens = useProjectStore((state) => state.reorderScreens)
   const copyScreenToAndroid = useProjectStore((state) => state.copyScreenToAndroid)
+  const syncLinkedAndroidScreen = useProjectStore((state) => state.syncLinkedAndroidScreen)
   const copyAllScreensToAndroid = useProjectStore((state) => state.copyAllScreensToAndroid)
   const assetUrls = useProjectStore((state) => state.assetUrls)
   const focusScreen = useEditorStore((state) => state.focusScreen)
@@ -165,6 +198,13 @@ export function ScreensPanel() {
     () => project?.screens.filter((screen) => getScreenPlatform(screen) === 'android') ?? [],
     [project?.screens],
   )
+  const linkedAndroidBySource = useMemo(() => {
+    const ids = new Set<string>()
+    for (const screen of androidScreens) {
+      if (screen.sourceScreenId) ids.add(screen.sourceScreenId)
+    }
+    return ids
+  }, [androidScreens])
 
   const dialogScreenCount = copyMode === 'all' ? appleScreens.length : 1
 
@@ -207,6 +247,15 @@ export function ScreensPanel() {
     const createdId = copyScreenToAndroid(pendingScreenId, targetDeviceId)
     if (createdId) {
       focusScreen(createdId, true)
+    }
+  }
+
+  const handleSyncAndroid = (appleScreenId: string) => {
+    const synced = syncLinkedAndroidScreen(appleScreenId)
+    if (synced) {
+      toast('Android screen synced from iOS', 'success')
+    } else {
+      toast('No linked Android screen to sync', 'error')
     }
   }
 
@@ -256,11 +305,15 @@ export function ScreensPanel() {
               title="iOS"
               screens={appleScreens}
               onCopyToAndroid={(screenId) => openCopyDialog('single', screenId)}
+              onSyncAndroid={handleSyncAndroid}
+              linkedAndroidBySource={linkedAndroidBySource}
             />
             <ScreenGroup
               title="Android"
               screens={androidScreens}
               onCopyToAndroid={(screenId) => openCopyDialog('single', screenId)}
+              onSyncAndroid={handleSyncAndroid}
+              linkedAndroidBySource={linkedAndroidBySource}
             />
           </div>
         </SortableContext>

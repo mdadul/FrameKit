@@ -37,6 +37,7 @@ import type {
   Element,
   Project,
   Screen,
+  TemplateApplyMode,
   TextElement,
 } from '@/lib/types'
 
@@ -56,11 +57,16 @@ interface ProjectState {
   setBrandKitOverride: (brandKit: Partial<BrandKit>) => void
   clearBrandKitOverride: () => void
   applyBrandToAllText: (scope: 'screen' | 'all', color?: string, font?: string) => void
-  applyTemplateToAllScreens: (elements: Element[], background: BackgroundConfig) => void
+  applyTemplateToAllScreens: (
+    elements: Element[],
+    background: BackgroundConfig,
+    mode?: TemplateApplyMode,
+  ) => void
   getElementCount: () => number
   addScreen: () => void
   duplicateScreen: (screenId: string) => void
   copyScreenToAndroid: (screenId: string, targetDeviceId: string) => string | null
+  syncLinkedAndroidScreen: (appleScreenId: string) => boolean
   copyAllScreensToAndroid: (targetDeviceId: string) => string[]
   deleteScreen: (screenId: string) => void
   reorderScreens: (screenIds: string[]) => void
@@ -75,7 +81,12 @@ interface ProjectState {
   sendBackward: (id: string) => void
   groupElements: (ids: string[]) => void
   ungroupElements: (groupId: string) => void
-  applyTemplateToScreen: (screenId: string, elements: Element[], background: BackgroundConfig) => void
+  applyTemplateToScreen: (
+    screenId: string,
+    elements: Element[],
+    background: BackgroundConfig,
+    mode?: TemplateApplyMode,
+  ) => void
   registerAssetUrl: (assetId: string, url: string) => void
   addText: () => void
   addShape: (kind?: import('@/lib/types').ShapeKind) => void
@@ -88,6 +99,44 @@ interface ProjectState {
 
 function withHistory(project: Project, recordHistory = true) {
   useHistoryStore.getState().setPresent(project, recordHistory)
+}
+
+function applyTemplateToScreenState(
+  screen: Screen,
+  elements: Element[],
+  background: BackgroundConfig,
+  mode: TemplateApplyMode = 'replace',
+) {
+  if (mode === 'background') {
+    screen.background = structuredClone(background)
+    return
+  }
+
+  const templateElements = elements.map((element, index) => ({
+    ...structuredClone(element),
+    id: createId(),
+    zIndex: index,
+  }))
+
+  if (mode === 'add-elements') {
+    const maxZ = screen.elements.reduce((max, element) => Math.max(max, element.zIndex), -1)
+    screen.elements = [
+      ...screen.elements,
+      ...templateElements.map((element, index) => ({
+        ...element,
+        zIndex: maxZ + 1 + index,
+      })),
+    ]
+    return
+  }
+
+  screen.background = structuredClone(background)
+  screen.elements = templateElements
+}
+
+function getAndroidDeviceId(screen: Screen): string | undefined {
+  const device = screen.elements.find((element) => element.type === 'device')
+  return device?.type === 'device' ? device.deviceId : undefined
 }
 
 /**
@@ -198,15 +247,10 @@ export const useProjectStore = create<ProjectState>()(
       })
     },
 
-    applyTemplateToAllScreens: (elements, background) => {
+    applyTemplateToAllScreens: (elements, background, mode = 'replace') => {
       get().updateProject((project) => {
         for (const screen of project.screens) {
-          screen.background = structuredClone(background)
-          screen.elements = elements.map((element, index) => ({
-            ...structuredClone(element),
-            id: createId(),
-            zIndex: index,
-          }))
+          applyTemplateToScreenState(screen, elements, background, mode)
         }
       })
     },
@@ -254,6 +298,31 @@ export const useProjectStore = create<ProjectState>()(
         project.screens = sortScreensByPlatform([...project.screens, copy])
       })
       return createdId
+    },
+
+    syncLinkedAndroidScreen: (appleScreenId) => {
+      let synced = false
+      get().updateProject((project) => {
+        const source = project.screens.find((screen) => screen.id === appleScreenId)
+        if (!source || !isAppleScreen(source)) return
+
+        const linked = project.screens.find(
+          (screen) =>
+            getScreenPlatform(screen) === 'android' && screen.sourceScreenId === appleScreenId,
+        )
+        if (!linked) return
+
+        const targetDeviceId = getAndroidDeviceId(linked) ?? getAndroidDeviceId(source)
+        if (!targetDeviceId) return
+
+        const refreshed = cloneScreenForAndroid(source, targetDeviceId)
+        linked.background = refreshed.background
+        linked.elements = refreshed.elements
+        linked.width = refreshed.width
+        linked.height = refreshed.height
+        synced = true
+      })
+      return synced
     },
 
     copyAllScreensToAndroid: (targetDeviceId) => {
@@ -454,16 +523,11 @@ export const useProjectStore = create<ProjectState>()(
       })
     },
 
-    applyTemplateToScreen: (screenId, elements, background) => {
+    applyTemplateToScreen: (screenId, elements, background, mode = 'replace') => {
       get().updateProject((project) => {
         const screen = project.screens.find((item) => item.id === screenId)
         if (!screen) return
-        screen.background = background
-        screen.elements = elements.map((element, index) => ({
-          ...structuredClone(element),
-          id: createId(),
-          zIndex: index,
-        }))
+        applyTemplateToScreenState(screen, elements, background, mode)
       })
     },
 

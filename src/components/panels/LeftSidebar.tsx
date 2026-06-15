@@ -50,17 +50,18 @@ function SidebarTab({
         data-tour={dataTour}
         onClick={onClick}
         className={cn(
-          'flex h-8 w-full items-center justify-center rounded-md transition',
+          'flex h-8 w-full flex-col items-center justify-center gap-0.5 rounded-md transition lg:h-auto lg:flex-row lg:gap-1.5 lg:px-2 lg:py-1.5',
           active
             ? 'bg-card text-primary shadow-sm ring-1 ring-border/60'
             : 'text-muted-foreground hover:bg-card/60 hover:text-foreground',
         )}
       >
         <Icon size={16} strokeWidth={active ? 2.25 : 2} />
+        <span className="hidden text-[10px] font-medium lg:inline">{label}</span>
       </button>
       <span
         role="tooltip"
-        className="pointer-events-none absolute top-[calc(100%+6px)] left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-md transition-opacity duration-150 group-hover/tip:opacity-100 group-focus-within/tip:opacity-100"
+        className="pointer-events-none absolute top-[calc(100%+6px)] left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-md transition-opacity duration-150 group-hover/tip:opacity-100 group-focus-within/tip:opacity-100 lg:hidden"
       >
         {label}
       </span>
@@ -105,7 +106,9 @@ export function LeftSidebar({ open, onClose }: LeftSidebarProps) {
                   ? 'templates-tab'
                   : tab.id === 'assets'
                     ? 'assets-tab'
-                    : undefined
+                    : tab.id === 'screens'
+                      ? 'screens-tab'
+                      : undefined
               }
             />
           ))}

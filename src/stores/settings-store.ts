@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { DEFAULT_USER_PREFERENCES } from '@/lib/constants'
+import { applyKonvaPixelRatio } from '@/lib/canvas/perf/konva-config'
 import { getUserPreferences, saveUserPreferences } from '@/lib/db'
 import type { BrandKit, ExportPreferences, ThemeMode, UserPreferences, WorkspacePreferences } from '@/lib/types'
 
@@ -23,8 +24,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   loadPreferences: async () => {
     const preferences = await getUserPreferences()
-    set({ preferences, loaded: true })
-    applyTheme(preferences.theme)
+    const workspace = {
+      ...DEFAULT_USER_PREFERENCES.workspace,
+      ...preferences.workspace,
+    }
+    const merged = { ...preferences, workspace }
+    set({ preferences: merged, loaded: true })
+    applyTheme(merged.theme)
+    applyKonvaPixelRatio(workspace.highDpiCanvas)
   },
 
   setTheme: async (theme) => {
@@ -40,6 +47,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       workspace: { ...get().preferences.workspace, ...workspace },
     }
     set({ preferences })
+    if ('highDpiCanvas' in workspace) {
+      applyKonvaPixelRatio(preferences.workspace.highDpiCanvas)
+    }
     await persist(preferences)
   },
 

@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils'
 const PRESET_PREVIEW_LIMIT = 8
 
 const TYPE_TABS: Array<{ id: BackgroundType; label: string; icon: LucideIcon }> = [
-  { id: 'solid', label: 'Color', icon: Palette },
+  { id: 'solid', label: 'Solid', icon: Palette },
   { id: 'linear-gradient', label: 'Gradient', icon: Blend },
   { id: 'mesh', label: 'Mesh', icon: Sparkles },
   { id: 'pattern', label: 'Pattern', icon: Grid3x3 },
@@ -82,18 +82,12 @@ function composeOverlay(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${Number(alpha.toFixed(2))})`
 }
 
-function ControlGroup({
-  title,
-  children,
-  className,
-}: {
-  title?: string
-  children: ReactNode
-  className?: string
-}) {
+function PropertyBlock({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <div className={cn('space-y-2.5 rounded-xl border border-border/50 bg-muted/25 p-3', className)}>
-      {title ? <p className="text-xs font-semibold text-foreground">{title}</p> : null}
+    <div className="space-y-2.5">
+      {title ? (
+        <p className="text-[11px] font-medium text-muted-foreground">{title}</p>
+      ) : null}
       {children}
     </div>
   )
@@ -112,7 +106,7 @@ function SegmentedControl<T extends string>({
 }) {
   return (
     <div
-      className="flex gap-1 rounded-lg bg-muted p-1"
+      className="inline-flex w-full gap-0.5 rounded-md border border-border/60 bg-muted/40 p-0.5"
       role="tablist"
       aria-label={ariaLabel}
     >
@@ -126,10 +120,10 @@ function SegmentedControl<T extends string>({
             aria-selected={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              'flex-1 rounded-md py-1.5 text-xs font-medium transition',
+              'flex-1 rounded-[5px] py-1.5 text-[11px] font-medium transition',
               active
-                ? 'bg-card text-foreground shadow-sm ring-1 ring-border/60'
-                : 'text-muted-foreground hover:bg-card/70 hover:text-foreground',
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
             {option.label}
@@ -172,14 +166,14 @@ function PresetGroup({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-medium text-muted-foreground">{title}</p>
+        <p className="text-[11px] text-muted-foreground">{title}</p>
         {hasMore && (
           <button
             type="button"
             onClick={() => setExpanded((value) => !value)}
-            className="text-[11px] font-medium text-primary hover:underline"
+            className="text-[10px] font-medium text-foreground/70 hover:text-foreground"
           >
-            {expanded ? 'Show less' : `Show all (${presets.length})`}
+            {expanded ? 'Less' : `All ${presets.length}`}
           </button>
         )}
       </div>
@@ -191,13 +185,13 @@ function PresetGroup({
             title={preset.label}
             aria-label={preset.label}
             onClick={() => onSelect({ ...preset.background })}
-            className="group relative aspect-square overflow-hidden rounded-lg border border-border/80 transition hover:ring-2 hover:ring-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="group relative aspect-square overflow-hidden rounded-md border border-border/70 transition hover:border-foreground/25 hover:ring-1 hover:ring-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             style={{
               backgroundImage: `url(${presetThumb(preset.background)})`,
               backgroundSize: 'cover',
             }}
           >
-            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent px-1 py-1 text-[9px] font-medium text-white opacity-0 transition group-hover:opacity-100">
+            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-1 py-0.5 text-[8px] font-medium text-white opacity-0 transition group-hover:opacity-100">
               {preset.label}
             </span>
           </button>
@@ -279,69 +273,59 @@ export function BackgroundControls({ background }: BackgroundControlsProps) {
   const overlayEnabled = Boolean(background.overlayColor)
 
   return (
-    <div className="space-y-3">
-      <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/20">
+    <div className="space-y-4">
+      <div className="relative overflow-hidden rounded-lg border border-border/70 bg-card">
         <div
-          className="h-16 w-full bg-cover bg-center"
+          className="h-[72px] w-full bg-cover bg-center"
           style={{ backgroundImage: `url(${previewUrl})` }}
           role="img"
           aria-label={`${activeTypeLabel} background preview`}
         />
-        <p className="border-t border-border/50 px-3 py-1.5 text-center text-[11px] font-medium text-muted-foreground">
-          {activeTypeLabel} background
-        </p>
+        <span className="absolute top-2 left-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+          {activeTypeLabel}
+        </span>
       </div>
 
-      <div
-        className="flex gap-1 rounded-lg bg-muted p-1"
-        role="tablist"
-        aria-label="Background type"
-      >
+      <div className="grid grid-cols-5 gap-0.5 rounded-md border border-border/60 bg-muted/30 p-0.5">
         {TYPE_TABS.map((tab) => {
           const Icon = tab.icon
           const active =
             tab.id === background.type ||
             (tab.id === 'linear-gradient' && isGradient)
           return (
-            <div key={tab.id} className="group/tip relative min-w-0 flex-1">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active}
-                aria-label={tab.label}
-                onClick={() => selectType(tab.id)}
-                className={cn(
-                  'flex h-9 w-full items-center justify-center rounded-md transition',
-                  active
-                    ? 'bg-card text-foreground shadow-sm ring-1 ring-border/60'
-                    : 'text-muted-foreground hover:bg-card/70 hover:text-foreground',
-                )}
-              >
-                <Icon size={16} strokeWidth={active ? 2.25 : 2} />
-              </button>
-              <span
-                role="tooltip"
-                className="pointer-events-none absolute top-[calc(100%+6px)] left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-md transition-opacity duration-150 group-hover/tip:opacity-100 group-focus-within/tip:opacity-100"
-              >
-                {tab.label}
-              </span>
-            </div>
+            <button
+              key={tab.id}
+              type="button"
+              aria-label={tab.label}
+              title={tab.label}
+              onClick={() => selectType(tab.id)}
+              className={cn(
+                'flex flex-col items-center justify-center gap-0.5 rounded-[5px] py-1.5 transition',
+                active
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-card/60 hover:text-foreground',
+              )}
+            >
+              <Icon size={14} strokeWidth={active ? 2.25 : 2} />
+              <span className="text-[9px] font-medium leading-none">{tab.label}</span>
+            </button>
           )
         })}
       </div>
 
       {background.type === 'solid' && (
-        <ControlGroup title="Fill">
+        <PropertyBlock>
           <ColorPickerField
-            label="Color"
+            label="Fill color"
+            variant="property"
             value={background.color ?? '#ffffff'}
             onChange={(color) => setBackground({ type: 'solid', color })}
           />
-        </ControlGroup>
+        </PropertyBlock>
       )}
 
       {isGradient && background.gradient && (
-        <ControlGroup title="Gradient">
+        <PropertyBlock title="Gradient">
           <SegmentedControl
             ariaLabel="Gradient type"
             value={background.type === 'radial-gradient' ? 'radial-gradient' : 'linear-gradient'}
@@ -362,9 +346,11 @@ export function BackgroundControls({ background }: BackgroundControlsProps) {
               }
             />
           )}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-2">
             <ColorPickerField
               label="Start"
+              variant="property"
+              compact
               value={background.gradient.stops[0]?.color ?? BRAND_PRIMARY}
               onChange={(color) => {
                 const stops = [...background.gradient!.stops]
@@ -374,6 +360,8 @@ export function BackgroundControls({ background }: BackgroundControlsProps) {
             />
             <ColorPickerField
               label="End"
+              variant="property"
+              compact
               value={
                 background.gradient.stops[background.gradient.stops.length - 1]?.color ??
                 '#0f172a'
@@ -385,16 +373,17 @@ export function BackgroundControls({ background }: BackgroundControlsProps) {
               }}
             />
           </div>
-        </ControlGroup>
+        </PropertyBlock>
       )}
 
       {background.type === 'mesh' && (
-        <ControlGroup title="Mesh colors">
+        <PropertyBlock title="Mesh colors">
           <div className="space-y-2">
             {(background.meshColors ?? []).map((color, index) => (
               <ColorPickerField
                 key={index}
-                label={`Blob ${index + 1}`}
+                label={`Color ${index + 1}`}
+                variant="property"
                 value={color}
                 onChange={(next) => {
                   const meshColors = [...(background.meshColors ?? [])]
@@ -404,39 +393,40 @@ export function BackgroundControls({ background }: BackgroundControlsProps) {
               />
             ))}
           </div>
-        </ControlGroup>
+        </PropertyBlock>
       )}
 
       {background.type === 'pattern' && (
-        <ControlGroup title="Pattern">
-          <div className="space-y-2">
-            <p className="text-[11px] text-muted-foreground">Texture</p>
-            <div className="flex flex-wrap gap-1">
-              {PATTERN_KINDS.map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  onClick={() => patch({ patternKind: kind })}
-                  className={cn(
-                    'rounded-md border px-2 py-1 text-[10px] font-medium capitalize transition',
-                    background.patternKind === kind
-                      ? 'border-primary bg-primary/10 text-foreground shadow-sm ring-1 ring-primary/30'
-                      : 'border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground',
-                  )}
-                >
-                  {kind}
-                </button>
-              ))}
-            </div>
+        <PropertyBlock title="Pattern">
+          <div className="flex flex-wrap gap-1">
+            {PATTERN_KINDS.map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                onClick={() => patch({ patternKind: kind })}
+                className={cn(
+                  'rounded-md border px-2 py-1 text-[10px] font-medium capitalize transition',
+                  background.patternKind === kind
+                    ? 'border-foreground/20 bg-foreground/5 text-foreground'
+                    : 'border-transparent bg-muted/50 text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {kind}
+              </button>
+            ))}
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-2">
             <ColorPickerField
               label="Base"
+              variant="property"
+              compact
               value={background.color ?? '#0f172a'}
               onChange={(color) => patch({ color })}
             />
             <ColorPickerField
               label="Pattern"
+              variant="property"
+              compact
               value={background.patternColor ?? BRAND_PRIMARY}
               onChange={(patternColor) => patch({ patternColor })}
             />
@@ -448,11 +438,11 @@ export function BackgroundControls({ background }: BackgroundControlsProps) {
             value={background.patternScale ?? 32}
             onChange={(patternScale) => patch({ patternScale })}
           />
-        </ControlGroup>
+        </PropertyBlock>
       )}
 
       {background.type === 'image' && (
-        <ControlGroup title="Image">
+        <PropertyBlock title="Image">
           <input
             ref={fileInputRef}
             type="file"
@@ -466,11 +456,11 @@ export function BackgroundControls({ background }: BackgroundControlsProps) {
           />
           {imageUrl ? (
             <div
-              className="h-28 w-full overflow-hidden rounded-lg border border-border/60 bg-cover bg-center"
+              className="h-24 w-full overflow-hidden rounded-md border border-border/70 bg-cover bg-center"
               style={{ backgroundImage: `url(${imageUrl})` }}
             />
           ) : (
-            <div className="flex h-28 w-full items-center justify-center rounded-lg border border-dashed border-border/80 bg-muted/20 text-xs text-muted-foreground">
+            <div className="flex h-24 w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/30 text-[11px] text-muted-foreground">
               No image selected
             </div>
           )}
@@ -488,21 +478,18 @@ export function BackgroundControls({ background }: BackgroundControlsProps) {
               </Button>
             )}
           </div>
-          <div className="space-y-2">
-            <p className="text-[11px] text-muted-foreground">Fit</p>
-            <SegmentedControl
-              ariaLabel="Image fit"
-              value={background.imageFit ?? 'cover'}
-              options={IMAGE_FITS.map((fit) => ({
-                value: fit,
-                label: fit.charAt(0).toUpperCase() + fit.slice(1),
-              }))}
-              onChange={(imageFit) => patch({ imageFit })}
-            />
-          </div>
+          <SegmentedControl
+            ariaLabel="Image fit"
+            value={background.imageFit ?? 'cover'}
+            options={IMAGE_FITS.map((fit) => ({
+              value: fit,
+              label: fit.charAt(0).toUpperCase() + fit.slice(1),
+            }))}
+            onChange={(imageFit) => patch({ imageFit })}
+          />
 
-          <div className="space-y-2 border-t border-border/60 pt-3">
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <div className="space-y-2 border-t border-border/50 pt-3">
+            <label className="flex cursor-pointer items-center gap-2 text-[11px] text-foreground">
               <input
                 type="checkbox"
                 checked={overlayEnabled}
@@ -520,6 +507,7 @@ export function BackgroundControls({ background }: BackgroundControlsProps) {
               <>
                 <ColorPickerField
                   label="Overlay color"
+                  variant="property"
                   value={overlay.hex}
                   onChange={(hex) => patch({ overlayColor: composeOverlay(hex, overlay.alpha) })}
                 />
@@ -535,11 +523,11 @@ export function BackgroundControls({ background }: BackgroundControlsProps) {
               </>
             )}
           </div>
-        </ControlGroup>
+        </PropertyBlock>
       )}
 
       {visiblePresetGroups.length > 0 && (
-        <ControlGroup title="Presets">
+        <PropertyBlock title="Presets">
           <div className="space-y-3">
             {visiblePresetGroups.map((group) => (
               <PresetGroup
@@ -550,7 +538,7 @@ export function BackgroundControls({ background }: BackgroundControlsProps) {
               />
             ))}
           </div>
-        </ControlGroup>
+        </PropertyBlock>
       )}
     </div>
   )

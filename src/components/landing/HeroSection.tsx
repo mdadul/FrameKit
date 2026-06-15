@@ -1,6 +1,7 @@
-import { ArrowRight, Sparkles } from 'lucide-react'
+import { ArrowRight, HardDrive, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { FeatureGrid, HIGHLIGHT_FEATURES } from '@/components/landing/FeaturesSection'
+import { cn } from '@/lib/utils'
 
 interface HeroSectionProps {
   compact?: boolean
@@ -11,42 +12,59 @@ interface HeroSectionProps {
 export function HeroSection({ compact, projectCount = 0, onNewProject }: HeroSectionProps) {
   if (compact) {
     return (
-      <section className="landing-gradient-bg relative overflow-hidden border-b border-border/40">
+      <section className="landing-gradient-bg relative overflow-hidden border-b border-border/50">
         <div className="pointer-events-none absolute inset-0 landing-gradient-orbs" aria-hidden />
-        <div className="relative mx-auto max-w-6xl px-6 py-5 sm:py-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-muted-foreground">
-                {projectCount} project{projectCount === 1 ? '' : 's'} saved locally
-              </p>
-              <h2 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
-                <span className="brand-gradient-text">Store-ready screenshots</span>
-                <span className="text-foreground">, built for speed.</span>
-              </h2>
-            </div>
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent dark:via-primary/40" aria-hidden />
 
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-              <ul className="flex flex-wrap gap-2 lg:max-w-[28rem] lg:justify-end">
-                {HIGHLIGHT_FEATURES.map((feature) => {
-                  const Icon = feature.icon
-                  return (
-                    <li
-                      key={feature.title}
-                      className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-card/60 px-3 py-1.5 text-xs font-medium backdrop-blur"
-                    >
-                      <Icon size={13} className="shrink-0 text-primary" />
-                      <span>{feature.title}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-              <a
-                href="#projects"
-                className="inline-flex items-center gap-1 text-sm font-medium text-primary transition hover:opacity-80"
-              >
-                Continue
-                <ArrowRight size={14} />
-              </a>
+        <div className="relative mx-auto max-w-6xl px-4 py-7 sm:px-6 sm:py-9">
+          <div
+            className={cn(
+              'rounded-2xl border border-border/60 p-5 shadow-sm sm:p-6',
+              'bg-card/70 backdrop-blur-md dark:border-border/50 dark:bg-card/40',
+            )}
+          >
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+              <div className="min-w-0 space-y-3">
+                <p className="brand-badge w-fit">
+                  <HardDrive size={12} aria-hidden />
+                  {projectCount} project{projectCount === 1 ? '' : 's'} saved locally
+                </p>
+                <h2 className="text-pretty text-xl font-bold leading-snug tracking-tight text-foreground sm:text-2xl">
+                  <span className="text-primary">Store-ready screenshots</span>
+                  <span className="text-muted-foreground">, built for speed.</span>
+                </h2>
+              </div>
+
+              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
+                <ul className="flex flex-wrap gap-2">
+                  {HIGHLIGHT_FEATURES.map((feature) => {
+                    const Icon = feature.icon
+                    return (
+                      <li
+                        key={feature.title}
+                        className={cn(
+                          'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium',
+                          'border-border/60 bg-muted/50 text-foreground dark:border-border/50 dark:bg-muted/30',
+                        )}
+                      >
+                        <Icon size={13} className="shrink-0 text-primary" aria-hidden />
+                        <span>{feature.title}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <a
+                  href="#projects"
+                  className={cn(
+                    'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-medium transition',
+                    'border border-border/70 bg-background/80 text-foreground hover:border-primary/40 hover:bg-accent/80',
+                    'dark:border-border/60 dark:bg-background/40 dark:hover:bg-accent/30',
+                  )}
+                >
+                  Continue
+                  <ArrowRight size={14} aria-hidden />
+                </a>
+              </div>
             </div>
           </div>
         </div>
