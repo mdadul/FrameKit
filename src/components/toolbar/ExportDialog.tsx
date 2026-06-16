@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { STORE_PRESETS } from '@/lib/presets/store-sizes'
 import {
   buildExportPlan,
@@ -43,7 +43,10 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
     }
   }, [open, project, dispatch])
 
-  const assetResolver = (assetId?: string) => (assetId ? assetUrls[assetId] : undefined)
+  const assetResolver = useCallback(
+    (assetId?: string) => (assetId ? assetUrls[assetId] : undefined),
+    [assetUrls],
+  )
 
   const targetPreset = useMemo(
     () => STORE_PRESETS.find((preset) => preset.id === form.currentTarget),

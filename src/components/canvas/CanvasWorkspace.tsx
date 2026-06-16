@@ -82,6 +82,7 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
     clientToWorkspace,
     handleWheel,
     handlePanMouseDown,
+    handleStagePanMouseDown,
     handlePanMouseMove,
     endPan,
   } = useCanvasViewport({ containerRef, screens })
@@ -342,7 +343,10 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
         height={containerSize.height}
         x={panX}
         y={panY}
-        onMouseDown={handleStageMouseDown}
+        onMouseDown={(event) => {
+          handleStagePanMouseDown(event)
+          handleStageMouseDown(event)
+        }}
         onMouseMove={handleStageMouseMove}
         onMouseUp={handleStageMouseUp}
         onContextMenu={(event) => {
@@ -527,9 +531,9 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
           />
         </div>
         <p className="hidden max-w-full truncate rounded-full bg-card/80 px-2.5 py-0.5 text-[10px] text-muted-foreground backdrop-blur-sm min-[360px]:block sm:text-[11px]">
-          <span className="sm:hidden">Scroll to zoom · Space to pan</span>
+          <span className="sm:hidden">Scroll to zoom · Space or bg-drag to pan</span>
           <span className="hidden sm:inline">
-            Space drag to pan · Scroll to zoom · ⌘0 fit active · Alt ← → switch screens
+            Space drag or background left-drag to pan · Scroll to zoom · ⌘0 fit active · Alt ← → switch screens
           </span>
         </p>
       </div>

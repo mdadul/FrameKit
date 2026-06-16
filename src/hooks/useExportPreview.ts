@@ -86,7 +86,7 @@ export function useExportPreview({
 
   useEffect(() => {
     if (!open || tab !== 'quick' || exportScreens.length === 0) {
-      setGridPreviews([])
+      setGridPreviews((current) => (current.length === 0 ? current : []))
       return
     }
 
