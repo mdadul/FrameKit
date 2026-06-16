@@ -5,6 +5,7 @@ import { getWorkspaceViewport } from '@/lib/canvas/perf/viewport'
 import { clamp } from '@/lib/utils'
 import { useEditorStore } from '@/stores/editor-store'
 import type { Screen } from '@/lib/types'
+import type Konva from 'konva'
 
 interface UseCanvasViewportOptions {
   containerRef: RefObject<HTMLDivElement | null>
@@ -13,7 +14,9 @@ interface UseCanvasViewportOptions {
 
 export function useCanvasViewport({ containerRef, screens }: UseCanvasViewportOptions) {
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
+  const pendingLeftPanRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const didInitialFitRef = useRef(false)
+  const LEFT_PAN_DRAG_THRESHOLD = 4
 
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   const [containerRect, setContainerRect] = useState<DOMRect | null>(null)
@@ -173,14 +176,39 @@ export function useCanvasViewport({ containerRef, screens }: UseCanvasViewportOp
 
   const handlePanMouseMove = useCallback(
     (event: React.MouseEvent) => {
+      const pendingLeftPan = pendingLeftPanRef.current
+      if (pendingLeftPan && !panStartRef.current) {
+        const distance = Math.hypot(event.clientX - pendingLeftPan.x, event.clientY - pendingLeftPan.y)
+        if (distance >= LEFT_PAN_DRAG_THRESHOLD) {
+          setIsPanning(true)
+          panStartRef.current = pendingLeftPan
+          pendingLeftPanRef.current = null
+        }
+      }
       const start = panStartRef.current
       if (!start) return
       setPan(start.panX + (event.clientX - start.x), start.panY + (event.clientY - start.y))
     },
-    [setPan],
+    [setIsPanning, setPan],
+  )
+
+  const handleStagePanMouseDown = useCallback(
+    (event: Konva.KonvaEventObject<MouseEvent>) => {
+      if (isSpacePressed) return
+      if (event.evt.button !== 0) return
+      if (event.target !== event.target.getStage()) return
+      pendingLeftPanRef.current = {
+        x: event.evt.clientX,
+        y: event.evt.clientY,
+        panX,
+        panY,
+      }
+    },
+    [isSpacePressed, panX, panY],
   )
 
   const endPan = useCallback(() => {
+    pendingLeftPanRef.current = null
     panStartRef.current = null
     setIsPanning(false)
   }, [setIsPanning])
@@ -200,6 +228,7 @@ export function useCanvasViewport({ containerRef, screens }: UseCanvasViewportOp
     clientToWorkspace,
     handleWheel,
     handlePanMouseDown,
+    handleStagePanMouseDown,
     handlePanMouseMove,
     endPan,
   }

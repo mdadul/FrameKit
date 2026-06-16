@@ -202,9 +202,8 @@ async function drawElement(
 
   context.save()
   context.globalAlpha = element.opacity
-  context.translate(element.x + element.width / 2, element.y + element.height / 2)
+  context.translate(element.x, element.y)
   context.rotate((element.rotation * Math.PI) / 180)
-  context.translate(-element.width / 2, -element.height / 2)
 
   if (element.shadow?.enabled) {
     context.shadowColor = element.shadow.color

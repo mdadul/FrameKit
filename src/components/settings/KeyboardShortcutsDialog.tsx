@@ -15,7 +15,7 @@ const SHORTCUTS = [
   { keys: '⌘+ / ⌘-', action: 'Zoom in / out' },
   { keys: '⌘0', action: 'Fit active screen' },
   { keys: 'Alt ← / Alt →', action: 'Previous / next screen' },
-  { keys: 'Space + drag', action: 'Pan canvas' },
+  { keys: 'Space + drag / Left-drag background', action: 'Pan canvas' },
   { keys: 'Scroll', action: 'Zoom at cursor' },
 ]
 
