@@ -1,7 +1,8 @@
 import { useCallback } from 'react'
 import { findScreenAtPoint } from '@/lib/canvas/workspace-layout'
 import { workspaceToScreenLocal } from '@/lib/canvas/coordinates'
-import { createImageElement } from '@/lib/factories'
+import { createImageElement, sortElementsByZIndex } from '@/lib/factories'
+import { getImageFilesFromDataTransfer, hasImageFiles } from '@/lib/assets/drag-files'
 import { usePersistAssetUpload } from '@/hooks/usePersistAssetUpload'
 import { useEditorStore } from '@/stores/editor-store'
 import { useProjectStore } from '@/stores/project-store'
@@ -30,23 +31,22 @@ export function useCanvasDrop({ screens, clientToWorkspace }: UseCanvasDropOptio
 
       setActiveScreenId(targetScreen.id)
 
-      const files = Array.from(event.dataTransfer.files).filter((file) =>
-        file.type.startsWith('image/'),
-      )
+      const files = getImageFilesFromDataTransfer(event.dataTransfer)
       if (files.length === 0) return
 
       const localPoint = workspaceToScreenLocal(point, screenLayout, targetScreen.id)
 
-      const targetDevice = [...targetScreen.elements]
-        .filter(
+      const targetDevice = sortElementsByZIndex(
+        targetScreen.elements.filter(
           (item) =>
             item.type === 'device' &&
             localPoint.x >= item.x &&
             localPoint.x <= item.x + item.width &&
             localPoint.y >= item.y &&
             localPoint.y <= item.y + item.height,
-        )
-        .sort((a, b) => b.zIndex - a.zIndex)[0]
+        ),
+        'desc',
+      )[0]
 
       for (const file of files) {
         const asset = await uploadAsset(file, 'screenshot')
@@ -79,7 +79,7 @@ export function useCanvasDrop({ screens, clientToWorkspace }: UseCanvasDropOptio
   )
 
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
-    if (Array.from(event.dataTransfer.types).includes('Files')) {
+    if (hasImageFiles(event)) {
       event.preventDefault()
       event.dataTransfer.dropEffect = 'copy'
     }

@@ -61,3 +61,9 @@ export function applyFileNamePattern(
 ): string {
   return pattern.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? key)
 }
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}

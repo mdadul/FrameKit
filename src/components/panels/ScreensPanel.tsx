@@ -16,6 +16,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Copy, GripVertical, Plus, RefreshCw, Smartphone, Trash2 } from 'lucide-react'
 import { CopyToAndroidDialog } from '@/components/panels/CopyToAndroidDialog'
+import { useAssetResolver } from '@/hooks/useAssetResolver'
 import { MAX_SCREENS } from '@/lib/constants'
 import { DEFAULT_ANDROID_DEVICE_ID, screenHasIpadFrame } from '@/lib/assets/device-mapping'
 import { getScreenPlatform, isAppleScreen } from '@/lib/platform-copy'
@@ -180,7 +181,7 @@ export function ScreensPanel() {
   const copyScreenToAndroid = useProjectStore((state) => state.copyScreenToAndroid)
   const syncLinkedAndroidScreen = useProjectStore((state) => state.syncLinkedAndroidScreen)
   const copyAllScreensToAndroid = useProjectStore((state) => state.copyAllScreensToAndroid)
-  const assetUrls = useProjectStore((state) => state.assetUrls)
+  const assetResolver = useAssetResolver()
   const focusScreen = useEditorStore((state) => state.focusScreen)
   const requestFit = useEditorStore((state) => state.requestFit)
   const sensors = useSensors(useSensor(PointerSensor))
@@ -214,8 +215,6 @@ export function ScreensPanel() {
     }
     return appleScreens[0] ?? null
   }, [copyMode, pendingScreenId, project?.screens, appleScreens])
-
-  const assetResolver = (assetId?: string) => (assetId ? assetUrls[assetId] : undefined)
 
   const includesIpadFrame = useMemo(() => {
     const targets =

@@ -19,6 +19,7 @@ import { renderScreenToDataUrl } from '@/lib/export/renderer'
 import { screenContentSignature } from '@/lib/canvas/perf/content-signature'
 import { LruMap } from '@/lib/canvas/perf/lru-map'
 import { enqueueThumbnailTask } from '@/lib/canvas/perf/thumbnail-queue'
+import { SCREEN_OVERVIEW_ACTIVE, SCREEN_OVERVIEW_HOVER } from '@/lib/canvas/selection-style'
 import { cn } from '@/lib/utils'
 import type { Screen } from '@/lib/types'
 
@@ -89,8 +90,8 @@ function ScreenThumbnail({
       style={style}
       className={cn(
         'group relative flex flex-col gap-2 rounded-lg border bg-card p-2 transition',
-        isActive ? 'border-[#18A0FB] ring-2 ring-[#18A0FB]/30' : 'border-border',
-        isDragging ? 'z-10 opacity-80 shadow-lg' : 'hover:border-[#18A0FB]/50',
+        isActive ? SCREEN_OVERVIEW_ACTIVE : 'border-border',
+        isDragging ? 'z-10 opacity-80 shadow-lg' : SCREEN_OVERVIEW_HOVER,
       )}
     >
       <div className="flex items-center justify-between gap-2">

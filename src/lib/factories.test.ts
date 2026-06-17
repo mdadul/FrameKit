@@ -5,6 +5,7 @@ import {
   createScreen,
   createScreenFromPrevious,
   createTextElement,
+  sortElementsByZIndex,
 } from '@/lib/factories'
 
 describe('createScreenFromPrevious', () => {
@@ -51,5 +52,33 @@ describe('createDefaultScreen', () => {
     const screen = createDefaultScreen('Starter')
 
     expect(screen.elements[0]?.type).toBe('device')
+  })
+})
+
+describe('sortElementsByZIndex', () => {
+  it('sorts ascending by default', () => {
+    const elements = [
+      createTextElement({ id: 'top', zIndex: 2 }),
+      createTextElement({ id: 'bottom', zIndex: 0 }),
+      createTextElement({ id: 'mid', zIndex: 1 }),
+    ]
+
+    expect(sortElementsByZIndex(elements).map((element) => element.id)).toEqual([
+      'bottom',
+      'mid',
+      'top',
+    ])
+  })
+
+  it('sorts descending when requested', () => {
+    const elements = [
+      createTextElement({ id: 'top', zIndex: 2 }),
+      createTextElement({ id: 'bottom', zIndex: 0 }),
+    ]
+
+    expect(sortElementsByZIndex(elements, 'desc').map((element) => element.id)).toEqual([
+      'top',
+      'bottom',
+    ])
   })
 })

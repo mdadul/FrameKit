@@ -195,8 +195,14 @@ export function duplicateElement(element: Element): Element {
   }
 }
 
-export function sortElementsByZIndex(elements: Element[]): Element[] {
-  return [...elements].sort((a, b) => a.zIndex - b.zIndex)
+export type ZIndexSortDirection = 'asc' | 'desc'
+
+export function sortElementsByZIndex(
+  elements: Element[],
+  direction: ZIndexSortDirection = 'asc',
+): Element[] {
+  const factor = direction === 'asc' ? 1 : -1
+  return [...elements].sort((a, b) => (a.zIndex - b.zIndex) * factor)
 }
 
 export function reindexElements(elements: Element[]): Element[] {

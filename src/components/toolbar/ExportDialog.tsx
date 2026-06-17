@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { STORE_PRESETS } from '@/lib/presets/store-sizes'
 import {
   buildExportPlan,
@@ -10,6 +10,7 @@ import { exportScreensAsZip, exportSingleScreen } from '@/lib/export/zip'
 import { applyFileNamePattern, downloadBlob } from '@/lib/utils'
 import { useExportFormReducer } from '@/hooks/useExportFormReducer'
 import { useExportPreview } from '@/hooks/useExportPreview'
+import { useAssetResolver } from '@/hooks/useAssetResolver'
 import { useProjectStore } from '@/stores/project-store'
 import { useEditorStore } from '@/stores/editor-store'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -28,7 +29,6 @@ interface ExportDialogProps {
 
 export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
   const project = useProjectStore((state) => state.project)
-  const assetUrls = useProjectStore((state) => state.assetUrls)
   const screen = useProjectStore((state) => state.getActiveScreen())
   const exportPrefs = useSettingsStore((state) => state.preferences.export)
   const updateExport = useSettingsStore((state) => state.updateExport)
@@ -43,10 +43,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
     }
   }, [open, project, dispatch])
 
-  const assetResolver = useCallback(
-    (assetId?: string) => (assetId ? assetUrls[assetId] : undefined),
-    [assetUrls],
-  )
+  const assetResolver = useAssetResolver()
 
   const targetPreset = useMemo(
     () => STORE_PRESETS.find((preset) => preset.id === form.currentTarget),

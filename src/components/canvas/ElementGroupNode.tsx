@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { Group } from 'react-konva'
 import type Konva from 'konva'
 import { ElementNode } from '@/components/canvas/ElementNode'
+import { isAdditiveKonvaPointerEvent } from '@/lib/selection/is-additive-selection'
 import { useEditorStore } from '@/stores/editor-store'
 import type { Element } from '@/lib/types'
 
@@ -71,11 +72,11 @@ function ElementGroupNodeInner({
       draggable={isActive && !anyLocked && allSelected}
       onClick={(event) => {
         event.cancelBubble = true
-        handleGroupSelect(event.evt.shiftKey)
+        handleGroupSelect(isAdditiveKonvaPointerEvent(event))
       }}
       onTap={(event) => {
         event.cancelBubble = true
-        handleGroupSelect(event.evt.shiftKey)
+        handleGroupSelect(isAdditiveKonvaPointerEvent(event))
       }}
       onDragEnd={(event) => {
         const dx = event.target.x() - minX

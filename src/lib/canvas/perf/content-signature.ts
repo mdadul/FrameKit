@@ -1,4 +1,5 @@
 import type { Element, Screen } from '@/lib/types'
+import { sortElementsByZIndex } from '@/lib/factories'
 
 function elementSignature(
   element: Element,
@@ -51,8 +52,7 @@ export function screenContentSignature(
   screen: Screen,
   assetResolver: (assetId?: string) => string | undefined,
 ): string {
-  const elements = [...screen.elements]
-    .sort((a, b) => a.zIndex - b.zIndex)
+  const elements = sortElementsByZIndex(screen.elements)
     .map((element) => elementSignature(element, assetResolver))
     .join(';;')
   return [

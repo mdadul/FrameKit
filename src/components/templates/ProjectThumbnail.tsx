@@ -58,9 +58,3 @@ export function ProjectThumbnail({ screen, assetResolver, className }: ProjectTh
     </TemplatePreviewFrame>
   )
 }
-
-export function buildAssetResolver(
-  assetUrls: Record<string, string>,
-): (assetId?: string) => string | undefined {
-  return (assetId?: string) => (assetId ? assetUrls[assetId] : undefined)
-}

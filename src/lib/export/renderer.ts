@@ -10,6 +10,8 @@ import type {
 import { createCanvasGradient as buildCanvasGradient } from '@/lib/canvas/create-canvas-gradient'
 import { renderDeviceComposite } from '@/lib/canvas/device-render'
 import { buildBackgroundCanvas } from '@/lib/canvas/backgrounds'
+import { drawImageWithObjectFit } from '@/lib/canvas/image-fit'
+import { sortElementsByZIndex } from '@/lib/factories'
 import { BRAND_PRIMARY } from '@/lib/constants'
 
 export interface RenderScreenOptions {
@@ -159,37 +161,17 @@ function drawImageWithFit(
   const naturalHeight = image.naturalHeight || image.height
   if (!naturalWidth || !naturalHeight) return
 
-  // Crop is stored normalized (0..1); defaults are 0/0/1/1 (no crop).
   const sourceX = (element.cropX ?? 0) * naturalWidth
   const sourceY = (element.cropY ?? 0) * naturalHeight
   const sourceWidth = (element.cropWidth ?? 1) * naturalWidth
   const sourceHeight = (element.cropHeight ?? 1) * naturalHeight
-  if (sourceWidth <= 0 || sourceHeight <= 0) return
 
-  const { width, height } = element
-  const fit = element.objectFit ?? 'cover'
-
-  if (fit === 'fill') {
-    context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, width, height)
-    return
-  }
-
-  const scale =
-    fit === 'contain'
-      ? Math.min(width / sourceWidth, height / sourceHeight)
-      : Math.max(width / sourceWidth, height / sourceHeight)
-  const drawWidth = sourceWidth * scale
-  const drawHeight = sourceHeight * scale
-  context.drawImage(
+  drawImageWithObjectFit(
+    context,
     image,
-    sourceX,
-    sourceY,
-    sourceWidth,
-    sourceHeight,
-    (width - drawWidth) / 2,
-    (height - drawHeight) / 2,
-    drawWidth,
-    drawHeight,
+    { x: sourceX, y: sourceY, width: sourceWidth, height: sourceHeight },
+    { x: 0, y: 0, width: element.width, height: element.height },
+    element.objectFit ?? 'cover',
   )
 }
 
@@ -443,7 +425,7 @@ export async function renderScreenToDataUrl(
     drawBackground(context, screen.background, screen.width, screen.height, backgroundImage)
   }
 
-  const sorted = [...screen.elements].sort((a, b) => a.zIndex - b.zIndex)
+  const sorted = sortElementsByZIndex(screen.elements)
   for (const element of sorted) {
     await drawElement(context, element, assetResolver)
   }
