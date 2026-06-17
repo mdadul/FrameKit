@@ -6,6 +6,8 @@ import { ElementNode } from '@/components/canvas/ElementNode'
 import { ElementGroupNode } from '@/components/canvas/ElementGroupNode'
 import { selectionStrokeWidth } from '@/lib/canvas/selection-style'
 import { SELECTION_BLUE, SELECTION_BLUE_SOFT } from '@/lib/canvas/selection-style'
+import { sortElementsByZIndex } from '@/lib/factories'
+import { isAdditiveKonvaPointerEvent } from '@/lib/selection/is-additive-selection'
 import { getCachedBackgroundCanvas } from '@/lib/canvas/perf/background-cache'
 import { buildGridCanvas } from '@/lib/canvas/perf/grid-canvas'
 import type { BackgroundConfig, Element } from '@/lib/types'
@@ -92,7 +94,7 @@ function ScreenArtboardInner({
   onArtboardBackgroundClick,
 }: ScreenArtboardProps) {
   const sortedElements = useMemo(
-    () => [...elements].sort((a, b) => a.zIndex - b.zIndex),
+    () => sortElementsByZIndex(elements),
     [elements],
   )
   const strokeScale = selectionStrokeWidth(workspaceZoom, 1)
@@ -165,7 +167,7 @@ function ScreenArtboardInner({
         fill="transparent"
         onMouseDown={(event) => {
           if (event.target !== event.currentTarget) return
-          onArtboardBackgroundClick(event.evt.shiftKey)
+          onArtboardBackgroundClick(isAdditiveKonvaPointerEvent(event))
         }}
       />
 

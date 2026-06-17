@@ -7,6 +7,7 @@ import {
   requestScreenSnapshot,
 } from '@/lib/canvas/perf/screen-snapshot-cache'
 import { screenContentSignature } from '@/lib/canvas/perf/content-signature'
+import { isAdditiveKonvaPointerEvent } from '@/lib/selection/is-additive-selection'
 import type { BackgroundConfig, Screen } from '@/lib/types'
 
 function SnapshotImage({
@@ -111,7 +112,7 @@ export function InactiveScreenArtboard({
         listening
         onMouseDown={(event) => {
           if (event.target !== event.currentTarget) return
-          onArtboardBackgroundClick(event.evt.shiftKey)
+          onArtboardBackgroundClick(isAdditiveKonvaPointerEvent(event))
         }}
       />
     </Group>

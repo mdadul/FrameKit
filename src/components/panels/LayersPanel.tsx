@@ -1,15 +1,7 @@
-import { useCallback, useState, type MouseEvent } from 'react'
-import {
-  DndContext,
-  closestCenter,
-  type DragEndEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
+import { useState, type MouseEvent } from 'react'
+import { DndContext, closestCenter } from '@dnd-kit/core'
 import {
   SortableContext,
-  arrayMove,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
@@ -26,31 +18,20 @@ import {
   Trash2,
 } from 'lucide-react'
 import { getLayerIcon } from '@/lib/elements/element-meta'
+import {
+  LAYER_LIST_GROUP_SELECTED,
+  LAYER_LIST_GROUP_SELECTED_INDICATOR,
+  LAYER_LIST_ITEM_SELECTED,
+  LAYER_LIST_ITEM_SELECTED_INDICATOR,
+} from '@/lib/canvas/selection-style'
 import { LayerContextMenu } from '@/components/panels/LayerContextMenu'
-import { useProjectStore } from '@/stores/project-store'
-import { useEditorStore } from '@/stores/editor-store'
+import { useLayerPanelActions } from '@/hooks/useLayerPanelActions'
 import { cn } from '@/lib/utils'
 import type { Element } from '@/lib/types'
 
 function LayerTypeIcon({ element }: { element: Element }) {
   const Icon = getLayerIcon(element)
   return <Icon size={13} strokeWidth={2} className="shrink-0 text-muted-foreground" />
-}
-
-function selectLayer(
-  elementId: string,
-  event: MouseEvent,
-  selectedIds: string[],
-  setSelected: (ids: string[]) => void,
-  toggle: (id: string) => void,
-) {
-  const additive = event.shiftKey || event.metaKey || event.ctrlKey
-  if (additive) {
-    toggle(elementId)
-    return
-  }
-  if (selectedIds.length === 1 && selectedIds[0] === elementId) return
-  setSelected([elementId])
 }
 
 function LayerRowActions({
@@ -99,21 +80,23 @@ function LayerRowActions({
 function SortableLayerItem({
   element,
   depth = 0,
+  isSelected,
+  onSelect,
   onContextMenu,
+  onToggleVisible,
+  onToggleLocked,
 }: {
   element: Element
   depth?: number
+  isSelected: boolean
+  onSelect: (elementId: string, event: MouseEvent) => void
   onContextMenu: (event: MouseEvent, elementId: string) => void
+  onToggleVisible: () => void
+  onToggleLocked: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: element.id,
   })
-  const selectedElementIds = useEditorStore((state) => state.selectedElementIds)
-  const setSelectedElementIds = useEditorStore((state) => state.setSelectedElementIds)
-  const toggleSelection = useEditorStore((state) => state.toggleSelection)
-  const updateElement = useProjectStore((state) => state.updateElement)
-
-  const isSelected = selectedElementIds.includes(element.id)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -129,14 +112,12 @@ function SortableLayerItem({
         'group/layer relative flex h-7 cursor-default items-center gap-1 pr-1.5 text-[12px] select-none',
         isDragging && 'z-10 opacity-60',
         isSelected
-          ? 'bg-[#18A0FB]/12 text-foreground ring-1 ring-inset ring-[#18A0FB]/35'
+          ? cn(LAYER_LIST_ITEM_SELECTED)
           : 'text-foreground/90 hover:bg-muted/70',
         !element.visible && 'opacity-45',
-        isSelected && 'before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-[#18A0FB]',
+        isSelected && LAYER_LIST_ITEM_SELECTED_INDICATOR,
       )}
-      onClick={(event) => {
-        selectLayer(element.id, event, selectedElementIds, setSelectedElementIds, toggleSelection)
-      }}
+      onClick={(event) => onSelect(element.id, event)}
       onContextMenu={(event) => onContextMenu(event, element.id)}
     >
       <button
@@ -153,8 +134,8 @@ function SortableLayerItem({
       <span className="min-w-0 flex-1 truncate leading-none">{element.name}</span>
       <LayerRowActions
         element={element}
-        onToggleVisible={() => updateElement(element.id, { visible: !element.visible })}
-        onToggleLocked={() => updateElement(element.id, { locked: !element.locked })}
+        onToggleVisible={onToggleVisible}
+        onToggleLocked={onToggleLocked}
       />
     </div>
   )
@@ -163,18 +144,25 @@ function SortableLayerItem({
 function GroupBlock({
   members,
   depth = 0,
+  selectedElementIds,
+  onSelect,
+  onSelectGroup,
   onContextMenu,
+  onToggleVisible,
+  onToggleLocked,
 }: {
   members: Element[]
   depth?: number
+  selectedElementIds: string[]
+  onSelect: (elementId: string, event: MouseEvent) => void
+  onSelectGroup: (memberIds: string[], event: MouseEvent) => void
   onContextMenu: (event: MouseEvent, elementIds: string[]) => void
+  onToggleVisible: (element: Element) => void
+  onToggleLocked: (element: Element) => void
 }) {
   const [expanded, setExpanded] = useState(true)
-  const selectedElementIds = useEditorStore((state) => state.selectedElementIds)
-  const setSelectedElementIds = useEditorStore((state) => state.setSelectedElementIds)
   const memberIds = members.map((member) => member.id)
   const hasSelectedMember = members.some((member) => selectedElementIds.includes(member.id))
-  const allMembersSelected = memberIds.every((id) => selectedElementIds.includes(id))
 
   return (
     <div>
@@ -182,23 +170,12 @@ function GroupBlock({
         className={cn(
           'group/layer relative flex h-7 w-full items-center gap-1 pr-1.5 text-[12px] transition select-none',
           hasSelectedMember
-            ? 'bg-[#18A0FB]/10 text-foreground ring-1 ring-inset ring-[#18A0FB]/25'
+            ? cn(LAYER_LIST_GROUP_SELECTED)
             : 'text-foreground/80 hover:bg-muted/70',
-          hasSelectedMember && 'before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-[#18A0FB]/70',
+          hasSelectedMember && LAYER_LIST_GROUP_SELECTED_INDICATOR,
         )}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
-        onClick={(event) => {
-          const additive = event.shiftKey || event.metaKey || event.ctrlKey
-          if (additive) {
-            if (allMembersSelected) {
-              setSelectedElementIds(selectedElementIds.filter((id) => !memberIds.includes(id)))
-            } else {
-              setSelectedElementIds(Array.from(new Set([...selectedElementIds, ...memberIds])))
-            }
-            return
-          }
-          setSelectedElementIds(memberIds)
-        }}
+        onClick={(event) => onSelectGroup(memberIds, event)}
         onContextMenu={(event) => onContextMenu(event, memberIds)}
       >
         <button
@@ -224,7 +201,11 @@ function GroupBlock({
             key={member.id}
             element={member}
             depth={depth + 1}
+            isSelected={selectedElementIds.includes(member.id)}
+            onSelect={onSelect}
             onContextMenu={(event, id) => onContextMenu(event, [id])}
+            onToggleVisible={() => onToggleVisible(member)}
+            onToggleLocked={() => onToggleLocked(member)}
           />
         ))}
     </div>
@@ -232,76 +213,28 @@ function GroupBlock({
 }
 
 export function LayersPanel() {
-  const screen = useProjectStore((state) => state.getActiveScreen())
-  const reorderElements = useProjectStore((state) => state.reorderElements)
-  const duplicateElements = useProjectStore((state) => state.duplicateElements)
-  const deleteElements = useProjectStore((state) => state.deleteElements)
-  const bringForward = useProjectStore((state) => state.bringForward)
-  const sendBackward = useProjectStore((state) => state.sendBackward)
-  const updateElement = useProjectStore((state) => state.updateElement)
-  const selectedElementIds = useEditorStore((state) => state.selectedElementIds)
-  const setSelectedElementIds = useEditorStore((state) => state.setSelectedElementIds)
-  const clearSelection = useEditorStore((state) => state.clearSelection)
-
-  const [contextMenu, setContextMenu] = useState<{
-    x: number
-    y: number
-    elementIds: string[]
-  } | null>(null)
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 4 },
-    }),
-  )
-
-  const openContextMenu = useCallback(
-    (event: MouseEvent, elementIds: string[]) => {
-      event.preventDefault()
-      event.stopPropagation()
-      const uniqueIds = Array.from(new Set(elementIds))
-      const hitsSelection = uniqueIds.every((id) => selectedElementIds.includes(id))
-      const nextSelection =
-        hitsSelection && selectedElementIds.length > 0 ? selectedElementIds : uniqueIds
-      if (!hitsSelection || selectedElementIds.length === 0) {
-        setSelectedElementIds(uniqueIds)
-      }
-      setContextMenu({
-        x: event.clientX,
-        y: event.clientY,
-        elementIds: nextSelection,
-      })
-    },
-    [selectedElementIds, setSelectedElementIds],
-  )
-
-  const contextTarget = contextMenu
-    ? (() => {
-        const elements =
-          screen?.elements.filter((element) => contextMenu.elementIds.includes(element.id)) ?? []
-        return {
-          elementIds: contextMenu.elementIds,
-          allVisible: elements.length > 0 && elements.every((element) => element.visible),
-          allLocked: elements.length > 0 && elements.every((element) => element.locked),
-          canDelete: contextMenu.elementIds.length > 0,
-        }
-      })()
-    : null
+  const {
+    screen,
+    sortedLayers,
+    selectedElementIds,
+    sensors,
+    contextMenu,
+    contextTarget,
+    contextMenuActions,
+    openContextMenu,
+    closeContextMenu,
+    selectLayer,
+    selectGroup,
+    onDragEnd,
+    duplicateSelection,
+    deleteSelection,
+    toggleLayerVisible,
+    toggleLayerLocked,
+  } = useLayerPanelActions()
 
   if (!screen) return null
 
-  const sorted = [...screen.elements].sort((a, b) => b.zIndex - a.zIndex)
-
-  const onDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = sorted.findIndex((element) => element.id === active.id)
-    const newIndex = sorted.findIndex((element) => element.id === over.id)
-    const reordered = arrayMove(sorted, oldIndex, newIndex).reverse()
-    reorderElements(reordered.map((element) => element.id))
-  }
-
-  if (sorted.length === 0) {
+  if (sortedLayers.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 py-10 text-center">
         <Layers size={22} className="text-muted-foreground/50" />
@@ -319,14 +252,14 @@ export function LayersPanel() {
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-border/80 px-2.5 py-1.5">
         <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-          {sorted.length} layer{sorted.length === 1 ? '' : 's'}
+          {sortedLayers.length} layer{sortedLayers.length === 1 ? '' : 's'}
         </span>
         <div className="flex items-center gap-0.5">
           <button
             type="button"
             title="Duplicate selection"
             disabled={selectedElementIds.length === 0}
-            onClick={() => duplicateElements(selectedElementIds)}
+            onClick={duplicateSelection}
             className={cn(
               'flex h-6 w-6 items-center justify-center rounded transition',
               selectedElementIds.length > 0
@@ -340,10 +273,7 @@ export function LayersPanel() {
             type="button"
             title="Delete selection"
             disabled={selectedElementIds.length === 0}
-            onClick={() => {
-              deleteElements(selectedElementIds)
-              clearSelection()
-            }}
+            onClick={deleteSelection}
             className={cn(
               'flex h-6 w-6 items-center justify-center rounded transition',
               selectedElementIds.length > 0
@@ -358,23 +288,28 @@ export function LayersPanel() {
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext
-          items={sorted.map((element) => element.id)}
+          items={sortedLayers.map((element) => element.id)}
           strategy={verticalListSortingStrategy}
         >
           <div
             className="min-h-0 flex-1 overflow-y-auto py-0.5"
-            onClick={() => setContextMenu(null)}
+            onClick={closeContextMenu}
           >
-            {sorted.map((element) => {
+            {sortedLayers.map((element) => {
               if (element.groupId) {
                 if (renderedGroups.has(element.groupId)) return null
                 renderedGroups.add(element.groupId)
-                const members = sorted.filter((item) => item.groupId === element.groupId)
+                const members = sortedLayers.filter((item) => item.groupId === element.groupId)
                 return (
                   <GroupBlock
                     key={element.groupId}
                     members={members}
+                    selectedElementIds={selectedElementIds}
+                    onSelect={selectLayer}
+                    onSelectGroup={selectGroup}
                     onContextMenu={openContextMenu}
+                    onToggleVisible={toggleLayerVisible}
+                    onToggleLocked={toggleLayerLocked}
                   />
                 )
               }
@@ -382,7 +317,11 @@ export function LayersPanel() {
                 <SortableLayerItem
                   key={element.id}
                   element={element}
+                  isSelected={selectedElementIds.includes(element.id)}
+                  onSelect={selectLayer}
                   onContextMenu={(event, id) => openContextMenu(event, [id])}
+                  onToggleVisible={() => toggleLayerVisible(element)}
+                  onToggleLocked={() => toggleLayerLocked(element)}
                 />
               )
             })}
@@ -390,35 +329,18 @@ export function LayersPanel() {
         </SortableContext>
       </DndContext>
 
-      {contextMenu && contextTarget && (
+      {contextMenu && contextTarget && contextMenuActions && (
         <LayerContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           target={contextTarget}
-          onDuplicate={() => duplicateElements(contextMenu.elementIds)}
-          onDelete={() => {
-            deleteElements(contextMenu.elementIds)
-            clearSelection()
-          }}
-          onBringForward={() => {
-            for (const id of contextMenu.elementIds) bringForward(id)
-          }}
-          onSendBackward={() => {
-            for (const id of contextMenu.elementIds) sendBackward(id)
-          }}
-          onToggleVisible={() => {
-            const nextVisible = !contextTarget.allVisible
-            for (const id of contextMenu.elementIds) {
-              updateElement(id, { visible: nextVisible })
-            }
-          }}
-          onToggleLocked={() => {
-            const nextLocked = !contextTarget.allLocked
-            for (const id of contextMenu.elementIds) {
-              updateElement(id, { locked: nextLocked })
-            }
-          }}
-          onClose={() => setContextMenu(null)}
+          onDuplicate={contextMenuActions.duplicate}
+          onDelete={contextMenuActions.delete}
+          onBringForward={contextMenuActions.bringForward}
+          onSendBackward={contextMenuActions.sendBackward}
+          onToggleVisible={contextMenuActions.toggleVisible}
+          onToggleLocked={contextMenuActions.toggleLocked}
+          onClose={closeContextMenu}
         />
       )}
     </div>

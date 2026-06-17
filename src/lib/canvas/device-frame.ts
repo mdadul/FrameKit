@@ -1,3 +1,4 @@
+import { drawImageWithObjectFit } from '@/lib/canvas/image-fit'
 import type { DeviceColorVariant, DeviceDefinition, ScreenshotFit } from '@/lib/types'
 
 export type ScreenshotSource =
@@ -25,24 +26,14 @@ function drawImageFitted(
   dh: number,
   fit: ScreenshotFit,
 ) {
-  const iw = image.width
-  const ih = image.height
-  if (!iw || !ih) return
-
-  const scale =
-    fit === 'cover'
-      ? Math.max(dw / iw, dh / ih)
-      : Math.min(dw / iw, dh / ih)
-  const sw = iw * scale
-  const sh = ih * scale
-  const ox = dx + (dw - sw) / 2
-  const oy = dy + (dh - sh) / 2
-
-  if (fit === 'contain') {
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(dx, dy, dw, dh)
-  }
-  ctx.drawImage(image, ox, oy, sw, sh)
+  drawImageWithObjectFit(
+    ctx,
+    image,
+    { x: 0, y: 0, width: image.width, height: image.height },
+    { x: dx, y: dy, width: dw, height: dh },
+    fit,
+    fit === 'contain' ? { letterboxFill: '#000000' } : undefined,
+  )
 }
 
 function drawNotch(

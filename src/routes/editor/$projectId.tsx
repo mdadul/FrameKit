@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useAssetResolver } from '@/hooks/useAssetResolver'
 import { Layers, SlidersHorizontal } from 'lucide-react'
 import { getProject, getProjectAssets, saveProject } from '@/lib/db'
 import { createAssetObjectUrl } from '@/lib/assets/image-pipeline'
@@ -25,7 +26,6 @@ function EditorPage() {
   const project = useProjectStore((state) => state.project)
   const loadProject = useProjectStore((state) => state.loadProject)
   const registerAssetUrl = useProjectStore((state) => state.registerAssetUrl)
-  const assetUrls = useProjectStore((state) => state.assetUrls)
   const setActiveScreenId = useEditorStore((state) => state.setActiveScreenId)
   const viewMode = useEditorStore((state) => state.viewMode)
   const focusScreen = useEditorStore((state) => state.focusScreen)
@@ -40,10 +40,7 @@ function EditorPage() {
   const [propertiesOpen, setPropertiesOpen] = useState(isDesktop)
   const [leftOpen, setLeftOpen] = useState(isDesktop)
 
-  const assetResolver = useCallback(
-    (assetId?: string) => (assetId ? assetUrls[assetId] : undefined),
-    [assetUrls],
-  )
+  const assetResolver = useAssetResolver()
 
   useKeyboardShortcuts()
   useAutoSave()

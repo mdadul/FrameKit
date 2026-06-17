@@ -31,6 +31,7 @@ export function useCanvasViewport({ containerRef, screens }: UseCanvasViewportOp
   const isPanning = useEditorStore((state) => state.isPanning)
   const isSpacePressed = useEditorStore((state) => state.isSpacePressed)
   const setIsPanning = useEditorStore((state) => state.setIsPanning)
+  const setIsSpacePressed = useEditorStore((state) => state.setIsSpacePressed)
   const fitRequest = useEditorStore((state) => state.fitRequest)
 
   const viewport = useMemo(
@@ -114,6 +115,26 @@ export function useCanvasViewport({ containerRef, screens }: UseCanvasViewportOp
     else if (fitRequest === 'active') fitActive()
     useEditorStore.setState({ fitRequest: null })
   }, [fitRequest, fitAll, fitActive])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code === 'Space' && !(event.target as HTMLElement).matches('input, textarea')) {
+        setIsSpacePressed(true)
+      }
+    }
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.code === 'Space') {
+        setIsSpacePressed(false)
+        setIsPanning(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    }
+  }, [setIsPanning, setIsSpacePressed])
 
   const zoomAtPoint = useCallback(
     (clientX: number, clientY: number, nextZoom: number) => {

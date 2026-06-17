@@ -4,6 +4,7 @@ import { Group, Image as KonvaImage, Line, Rect, RegularPolygon, Text, Circle } 
 import useImage from 'use-image'
 import { clearKonvaImageCache } from '@/lib/canvas/konva-lifecycle'
 import { getElementShadowProps, getGradientProps } from '@/lib/canvas/helpers'
+import { isAdditiveKonvaPointerEvent } from '@/lib/selection/is-additive-selection'
 import { getCachedDeviceComposite } from '@/lib/canvas/perf/device-composite-cache'
 import type { DeviceElement, Element, ImageElement, ShapeElement, TextElement } from '@/lib/types'
 
@@ -80,8 +81,8 @@ function ImageNode({
       opacity={element.opacity}
       visible={element.visible}
       draggable={draggable}
-      onClick={(event) => props.onSelect(element.id, event.evt.shiftKey)}
-      onTap={(event) => props.onSelect(element.id, event.evt.shiftKey)}
+      onClick={(event) => props.onSelect(element.id, isAdditiveKonvaPointerEvent(event))}
+      onTap={(event) => props.onSelect(element.id, isAdditiveKonvaPointerEvent(event))}
       onDragMove={(event) => props.onDragMove?.(element.id, event.target)}
       onDragEnd={(event) => {
         props.onChange(element.id, {
@@ -167,8 +168,8 @@ function DeviceNode({
       opacity={element.opacity}
       visible={element.visible}
       draggable={draggable}
-      onClick={(event) => props.onSelect(element.id, event.evt.shiftKey)}
-      onTap={(event) => props.onSelect(element.id, event.evt.shiftKey)}
+      onClick={(event) => props.onSelect(element.id, isAdditiveKonvaPointerEvent(event))}
+      onTap={(event) => props.onSelect(element.id, isAdditiveKonvaPointerEvent(event))}
       onDragMove={(event) => props.onDragMove?.(element.id, event.target)}
       onDragEnd={(event) => {
         props.onChange(element.id, {
@@ -262,8 +263,10 @@ function ElementNodeInner({
     draggable: isDraggable,
     listening: !element.locked,
     perfectDrawEnabled: hasStroke ? false : undefined,
-    onClick: (event: { evt: { shiftKey: boolean } }) => onSelect(element.id, event.evt.shiftKey),
-    onTap: (event: { evt: { shiftKey: boolean } }) => onSelect(element.id, event.evt.shiftKey),
+    onClick: (event: { evt: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean } }) =>
+      onSelect(element.id, isAdditiveKonvaPointerEvent(event)),
+    onTap: (event: { evt: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean } }) =>
+      onSelect(element.id, isAdditiveKonvaPointerEvent(event)),
     onDragMove: (event: { target: Konva.Node }) => onDragMove?.(element.id, event.target),
     onDragEnd: (event: { target: Konva.Node }) => {
       onChange(element.id, {

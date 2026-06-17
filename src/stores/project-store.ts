@@ -27,6 +27,10 @@ import {
   ungroupElementsOnScreen,
   updateElementOnScreen,
 } from '@/stores/project/element-mutations'
+import {
+  mutateOnActiveScreen,
+  resolveActiveScreenId,
+} from '@/stores/project/with-active-screen'
 import { createDefaultDeviceElement } from '@/stores/project/create-device-element'
 import {
   addScreenToProject,
@@ -158,9 +162,10 @@ export const useProjectStore = create<ProjectState>()(
 
     getActiveScreen: () => {
       const project = get().project
-      if (!project || project.screens.length === 0) return null
-      const activeId = useEditorStore.getState().activeScreenId
-      return project.screens.find((screen) => screen.id === activeId) ?? project.screens[0]
+      if (!project) return null
+      const activeId = resolveActiveScreenId(project)
+      if (!activeId) return null
+      return findScreenById(project, activeId) ?? null
     },
 
     setProjectName: (name) => {
@@ -274,104 +279,68 @@ export const useProjectStore = create<ProjectState>()(
     },
 
     setActiveScreenBackground: (background) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (screen) setScreenBackground(screen, background)
-      })
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        setScreenBackground(screen, background),
+      )
     },
 
     addElement: (element) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        addElementToScreen(screen, element)
-      })
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        addElementToScreen(screen, element),
+      )
     },
 
     updateElement: (id, patch) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen) return
       const recordHistory = resolveElementUpdateHistory(id, patch)
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        updateElementOnScreen(screen, id, patch)
-      }, recordHistory)
+      mutateOnActiveScreen(
+        get().project,
+        get().updateProject,
+        (screen) => updateElementOnScreen(screen, id, patch),
+        recordHistory,
+      )
     },
 
     deleteElements: (ids) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        deleteElementsFromScreen(screen, ids)
-      })
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        deleteElementsFromScreen(screen, ids),
+      )
     },
 
     duplicateElements: (ids) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        duplicateElementsOnScreen(screen, ids)
-      })
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        duplicateElementsOnScreen(screen, ids),
+      )
     },
 
     reorderElements: (elementIds) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        reorderElementsOnScreen(screen, elementIds)
-      })
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        reorderElementsOnScreen(screen, elementIds),
+      )
     },
 
     bringForward: (id) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        bringForwardElement(screen, id)
-      })
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        bringForwardElement(screen, id),
+      )
     },
 
     sendBackward: (id) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        sendBackwardElement(screen, id)
-      })
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        sendBackwardElement(screen, id),
+      )
     },
 
     groupElements: (ids) => {
       if (ids.length < 2) return
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        groupElementsOnScreen(screen, ids)
-      })
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        groupElementsOnScreen(screen, ids),
+      )
     },
 
     ungroupElements: (groupId) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        ungroupElementsOnScreen(screen, groupId)
-      })
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        ungroupElementsOnScreen(screen, groupId),
+      )
     },
 
     applyTemplateToScreen: (screenId, elements, background, mode = 'replace') => {
@@ -403,33 +372,24 @@ export const useProjectStore = create<ProjectState>()(
     },
 
     alignElements: (ids, alignment) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen || ids.length === 0) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        alignElementsOnScreen(screen, ids, alignment)
-      })
+      if (ids.length === 0) return
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        alignElementsOnScreen(screen, ids, alignment),
+      )
     },
 
     alignToArtboard: (ids, axis) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen || ids.length === 0) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        alignElementsToArtboard(screen, ids, axis)
-      })
+      if (ids.length === 0) return
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        alignElementsToArtboard(screen, ids, axis),
+      )
     },
 
     distributeElements: (ids, axis) => {
-      const activeScreen = get().getActiveScreen()
-      if (!activeScreen || ids.length < 3) return
-      get().updateProject((project) => {
-        const screen = findScreenById(project, activeScreen.id)
-        if (!screen) return
-        distributeElementsOnScreen(screen, ids, axis)
-      })
+      if (ids.length < 3) return
+      mutateOnActiveScreen(get().project, get().updateProject, (screen) =>
+        distributeElementsOnScreen(screen, ids, axis),
+      )
     },
   })),
 )

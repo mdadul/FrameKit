@@ -15,18 +15,9 @@ import {
   getAddChipPosition,
   getAddFrameSize,
 } from '@/lib/canvas/workspace-layout'
-import {
-  applySnapping,
-  computeSnap,
-} from '@/lib/canvas/helpers'
-import {
-  getAbsoluteNodePosition,
-  setAbsoluteNodePosition,
-} from '@/lib/canvas/coordinates'
 import { rectsIntersectViewport } from '@/lib/canvas/perf/viewport'
 import { useBatchDraw } from '@/lib/canvas/perf/batch-draw'
 import { applyKonvaPixelRatio } from '@/lib/canvas/perf/konva-config'
-import { exportActiveScreenBlobFromStage } from '@/lib/canvas/konva-export'
 import {
   SELECTION_BLUE,
   SELECTION_HANDLE_FILL,
@@ -41,11 +32,13 @@ import { useCanvasSelection } from '@/hooks/useCanvasSelection'
 import { useCanvasDrop } from '@/hooks/useCanvasDrop'
 import { useCanvasTextEdit } from '@/hooks/useCanvasTextEdit'
 import { useScreenContextMenu } from '@/hooks/useScreenContextMenu'
+import { useKonvaStageBridge } from '@/hooks/useKonvaStageBridge'
+import { useCanvasSnapping } from '@/hooks/useCanvasSnapping'
 import { cn } from '@/lib/utils'
 import { useEditorStore } from '@/stores/editor-store'
 import { useProjectStore } from '@/stores/project-store'
 import { useSettingsStore } from '@/stores/settings-store'
-import type { Element, Screen } from '@/lib/types'
+import type { Screen } from '@/lib/types'
 
 interface CanvasWorkspaceProps {
   screens: Screen[]
@@ -63,8 +56,6 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
 
   const screenLayout = useEditorStore((state) => state.screenLayout)
   const syncScreenLayout = useEditorStore((state) => state.syncScreenLayout)
-  const setIsSpacePressed = useEditorStore((state) => state.setIsSpacePressed)
-  const setIsPanning = useEditorStore((state) => state.setIsPanning)
   const requestFit = useEditorStore((state) => state.requestFit)
 
   const scheduleDraw = useBatchDraw(stageRef)
@@ -160,7 +151,7 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
   const canvasCheckerboard = useSettingsStore((state) => state.preferences.workspace.canvasCheckerboard)
   const highDpiCanvas = useSettingsStore((state) => state.preferences.workspace.highDpiCanvas)
 
-  const setKonvaStageBridge = useEditorStore((state) => state.setKonvaStageBridge)
+  useKonvaStageBridge({ stageRef, activeScreenId })
 
   useEffect(() => {
     applyKonvaPixelRatio(highDpiCanvas)
@@ -181,88 +172,15 @@ export function CanvasWorkspace({ screens, assetResolver }: CanvasWorkspaceProps
     if (pos) overlayRef.current?.setScreenOffset(pos.x, pos.y)
   }, [activeScreenId, screenLayout])
 
-  useEffect(() => {
-    const stage = stageRef.current
-    if (!stage) {
-      setKonvaStageBridge(null)
-      return
-    }
-
-    setKonvaStageBridge({
-      activeScreenId,
-      exportActiveScreen: async (screenId, options) => {
-        const currentStage = stageRef.current
-        if (!currentStage || screenId !== activeScreenId) return null
-        return exportActiveScreenBlobFromStage(
-          { stage: currentStage, screenId, isActiveOnCanvas: true },
-          options,
-        )
-      },
-    })
-
-    return () => setKonvaStageBridge(null)
-  }, [activeScreenId, setKonvaStageBridge])
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code === 'Space' && !(event.target as HTMLElement).matches('input, textarea')) {
-        setIsSpacePressed(true)
-      }
-    }
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (event.code === 'Space') {
-        setIsSpacePressed(false)
-        setIsPanning(false)
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('keyup', onKeyUp)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('keyup', onKeyUp)
-    }
-  }, [setIsPanning, setIsSpacePressed])
-
-  const handleElementChange = (screenId: string, id: string, patch: Partial<Element>) => {
-    setActiveScreenId(screenId)
-    const screen = screens.find((item) => item.id === screenId)
-    const element = screen?.elements.find((item) => item.id === id)
-    if (!element || !screen) return
-
-    let next = { ...element, ...patch } as Element
-    if (showSmartGuides && ('x' in patch || 'y' in patch)) {
-      next = applySnapping(
-        next,
-        screen.elements.filter((item) => item.id !== id),
-        screen.width,
-        screen.height,
-        snapSensitivity,
-      )
-    }
-    overlayRef.current?.clear()
-    updateElement(id, next)
-  }
-
-  const handleDragMove = (screenId: string, id: string, node: Konva.Node) => {
-    setActiveScreenId(screenId)
-    if (!showSmartGuides) return
-    const screen = screens.find((item) => item.id === screenId)
-    const element = screen?.elements.find((item) => item.id === id)
-    if (!screen || !element) return
-    const absolute = getAbsoluteNodePosition(element, screen, node)
-    const moving = { ...element, x: absolute.x, y: absolute.y } as Element
-    const others = screen.elements.filter((item) => item.id !== id)
-    const { x, y, lines } = computeSnap(
-      moving,
-      others,
-      screen.width,
-      screen.height,
-      snapSensitivity,
-    )
-    setAbsoluteNodePosition(element, screen, node, x, y)
-    overlayRef.current?.setGuides(lines, screen.width, screen.height)
-    scheduleDraw()
-  }
+  const { handleElementChange, handleDragMove } = useCanvasSnapping({
+    screens,
+    showSmartGuides,
+    snapSensitivity,
+    updateElement,
+    setActiveScreenId,
+    overlayRef,
+    scheduleDraw,
+  })
 
   const handleAddScreen = () => {
     if ((project?.screens.length ?? 0) >= MAX_SCREENS) return
